@@ -30,7 +30,7 @@ inputs:
     description: >
       Datadog API key for forwarding firewall events to the Datadog HTTP API.
       When set, logging to Datadog is automatically enabled. Treat this value
-      as a secret (use ${{ secrets.DD_API_KEY }}).
+      as a secret.
     required: false
     default: ''
 
@@ -116,21 +116,15 @@ runs:
             error_on_block_flag="--error-on-block"
           fi
 
-          # The wrapper discovers the real binary at call time by stripping its
-          # own directory from PATH before searching. This means it naturally
-          # finds the venv's pip (or npm, etc.) when a venv is active, and falls
-          # back to the system binary otherwise — with no extra setup required.
-          cat > "$WRAPPER_DIR/$pm" << WRAPPER_EOF
-#!/bin/bash
-_wrapper_dir="\$(dirname "\$(realpath "\${BASH_SOURCE[0]}")")"
-_search_path="\$(printf '%s' "\$PATH" | tr ':' '\n' | grep -vxF "\$_wrapper_dir" | tr '\n' ':')"
-_real_bin="\$(PATH="\$_search_path" command -v $pm 2>/dev/null)"
-if [ -z "\$_real_bin" ]; then
-  echo "scfw: could not find '$pm' executable" >&2
-  exit 1
-fi
-exec scfw run --executable "\$_real_bin" $error_on_block_flag $pm "\$@"
-WRAPPER_EOF
+          # Instantiate the wrapper template, substituting the package manager
+          # name and any extra scfw flags. The template lives in a separate file
+          # to avoid embedding unindented content inside the YAML literal block,
+          # which would cause a YAML parse error.
+          sed \
+            -e "s|SCFW_PM_NAME|$pm|g" \
+            -e "s|SCFW_EXTRA_FLAGS |${error_on_block_flag:+$error_on_block_flag }|g" \
+            "$GITHUB_ACTION_PATH/scripts/pm-wrapper.sh.template" \
+            > "$WRAPPER_DIR/$pm"
           chmod +x "$WRAPPER_DIR/$pm"
           echo "Created wrapper: $pm (real binary resolved at call time)"
         done

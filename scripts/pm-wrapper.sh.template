@@ -1,0 +1,9 @@
+#!/bin/bash
+_wrapper_dir="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+_search_path="$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF "$_wrapper_dir" | tr '\n' ':')"
+_real_bin="$(PATH="$_search_path" command -v SCFW_PM_NAME 2>/dev/null)"
+if [ -z "$_real_bin" ]; then
+  echo "scfw: could not find 'SCFW_PM_NAME' executable" >&2
+  exit 1
+fi
+exec scfw run --executable "$_real_bin" SCFW_EXTRA_FLAGS SCFW_PM_NAME "$@"
