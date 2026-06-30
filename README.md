@@ -29,6 +29,8 @@ steps:
       dd-log-level: ALLOW   # log every firewall event, not just blocks
 ```
 
+See [`examples/example.yml`](examples/example.yml) for a complete workflow you can copy into your own repo.
+
 ### With a cached verifier-data directory
 
 Caching `scfw-home` avoids re-fetching verifier data on each run:
