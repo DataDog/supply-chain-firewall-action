@@ -77,26 +77,3 @@ jobs:
           fi
           echo "PASS: blocked package was correctly rejected"
 
-      # --- Venv interception ---
-
-      - name: pip install through an active venv is intercepted
-        shell: bash
-        run: |
-          python -m venv /tmp/test-venv
-          source /tmp/test-venv/bin/activate
-
-          # Verify the wrapper is still the entry point (not the venv's raw pip)
-          active_pip="$(which pip)"
-          echo "pip inside venv resolves to: $active_pip"
-          [[ "$active_pip" == *"scfw-wrappers"* ]] || { echo "FAIL: venv pip bypassed wrapper"; exit 1; }
-
-          # Verify a clean install still succeeds through the venv
-          pip install requests
-          python -c "import requests" || { echo "FAIL: requests not importable in venv"; exit 1; }
-
-          # Verify blocking still works through the venv
-          if pip install scfw-test-blocked-package==0.0.1; then
-            echo "FAIL: blocked package was not rejected inside venv"
-            exit 1
-          fi
-          echo "PASS: venv interception working correctly"

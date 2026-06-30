@@ -86,7 +86,7 @@ steps:
 
 ## Notes
 
-- **Virtual environments**: Activating a Python virtual environment works transparently. The wrapper detects that a venv is active and routes through the venv's `pip` automatically.
+- **Virtual environments**: Activating a Python virtual environment (e.g., `source .venv/bin/activate`) shadows the Supply Chain Firewall wrapper for the remainder of that step. Use `scfw run pip install ...` explicitly for any installations inside a venv.
 
 - **`error-on-block`**: Defaults to `true` so that blocked packages fail the workflow immediately. Set to `false` if you want audit-only behavior without breaking builds.
 
