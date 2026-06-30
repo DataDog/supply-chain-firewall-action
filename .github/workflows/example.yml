@@ -1,0 +1,37 @@
+name: Example - Supply Chain Firewall
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Cache scfw verifier data across runs
+      - uses: actions/cache@v4
+        with:
+          path: ~/.scfw
+          key: scfw-${{ runner.os }}
+
+      # Install and configure Supply Chain Firewall
+      - uses: DataDog/supply-chain-firewall-action@main
+        with:
+          scfw-home: ~/.scfw
+          dd-api-key: ${{ secrets.DD_API_KEY }}
+
+      # These commands are now transparently intercepted by Supply Chain Firewall.
+      # Malicious packages are blocked before installation.
+      - run: pip install -r requirements.txt
+      - run: npm install

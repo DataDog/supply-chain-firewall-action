@@ -1,0 +1,102 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Set up a custom blocklist so we can test blocking without relying
+      # on the live malicious-package database.
+      - name: Prepare scfw-home with custom blocklist
+        shell: bash
+        run: |
+          mkdir -p /tmp/test-scfw-home/list_verifier
+          cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
+          - package:
+              name: scfw-test-blocked-package
+              version: "0.0.1"
+              ecosystem: PyPI
+            id: TEST-001
+            severity: CRITICAL
+            description: Test entry for Supply Chain Firewall action CI
+          EOF
+
+      - name: Run the action under test
+        uses: ./
+        with:
+          scfw-home: /tmp/test-scfw-home
+          error-on-block: 'true'
+
+      # --- Wrapper installation ---
+
+      - name: pip wrapper is in PATH
+        shell: bash
+        run: |
+          wrapper="$(which pip)"
+          echo "pip resolves to: $wrapper"
+          [[ "$wrapper" == *"scfw-wrappers"* ]] || { echo "FAIL: pip wrapper not active"; exit 1; }
+
+      - name: npm wrapper is in PATH
+        shell: bash
+        run: |
+          wrapper="$(which npm)"
+          echo "npm resolves to: $wrapper"
+          [[ "$wrapper" == *"scfw-wrappers"* ]] || { echo "FAIL: npm wrapper not active"; exit 1; }
+
+      # --- Pass-through: a clean package installs normally ---
+
+      - name: Clean pip install succeeds
+        shell: bash
+        run: pip install requests
+
+      # --- Blocking: a blocklisted package is rejected ---
+
+      - name: Blocked pip install fails
+        shell: bash
+        run: |
+          if pip install scfw-test-blocked-package==0.0.1; then
+            echo "FAIL: blocked package was not rejected"
+            exit 1
+          fi
+          echo "PASS: blocked package was correctly rejected"
+
+      # --- Venv interception ---
+
+      - name: pip install through an active venv is intercepted
+        shell: bash
+        run: |
+          python -m venv /tmp/test-venv
+          source /tmp/test-venv/bin/activate
+
+          # Verify the wrapper is still the entry point (not the venv's raw pip)
+          active_pip="$(which pip)"
+          echo "pip inside venv resolves to: $active_pip"
+          [[ "$active_pip" == *"scfw-wrappers"* ]] || { echo "FAIL: venv pip bypassed wrapper"; exit 1; }
+
+          # Verify a clean install still succeeds through the venv
+          pip install requests
+          python -c "import requests" || { echo "FAIL: requests not importable in venv"; exit 1; }
+
+          # Verify blocking still works through the venv
+          if pip install scfw-test-blocked-package==0.0.1; then
+            echo "FAIL: blocked package was not rejected inside venv"
+            exit 1
+          fi
+          echo "PASS: venv interception working correctly"

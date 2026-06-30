@@ -1,0 +1,167 @@
+name: 'Supply Chain Firewall Setup'
+description: >
+  Install Datadog Supply Chain Firewall and configure it to transparently intercept
+  package manager commands (pip, npm, poetry) for all subsequent steps in the job.
+
+inputs:
+  version:
+    description: >
+      Version of supply-chain-firewall to install. Use "latest" for the most
+      recent release (default), or pin to a specific version (e.g., "0.7.0").
+    required: false
+    default: 'latest'
+
+  package-managers:
+    description: >
+      Comma-separated list of package managers to intercept. Supported values:
+      pip, npm, poetry. Defaults to all three.
+    required: false
+    default: 'pip,npm,poetry'
+
+  error-on-block:
+    description: >
+      When "true" (default), blocked package installations cause the step to exit
+      with a non-zero code, failing the workflow. Set to "false" to allow the
+      workflow to continue even when installations are blocked.
+    required: false
+    default: 'true'
+
+  dd-api-key:
+    description: >
+      Datadog API key for forwarding firewall events to the Datadog HTTP API.
+      When set, logging to Datadog is automatically enabled. Treat this value
+      as a secret (use ${{ secrets.DD_API_KEY }}).
+    required: false
+    default: ''
+
+  dd-site:
+    description: >
+      Datadog site to send logs to (e.g., datadoghq.com, datadoghq.eu,
+      us3.datadoghq.com). Defaults to datadoghq.com when not specified.
+    required: false
+    default: ''
+
+  dd-log-level:
+    description: >
+      Controls which firewall events are forwarded to Datadog. "ALLOW" logs all
+      events; "BLOCK" logs only blocked events. Defaults to "ALLOW" when
+      Datadog logging is enabled.
+    required: false
+    default: ''
+
+  scfw-home:
+    description: >
+      Directory for Supply Chain Firewall's local cache (verifier data, log file).
+      Defaults to a temporary directory when not specified. Set this to a
+      cached directory to speed up verifier data fetches across runs.
+    required: false
+    default: ''
+
+outputs:
+  wrapper-dir:
+    description: 'Path to the directory containing the package manager wrapper scripts.'
+    value: ${{ steps.create-wrappers.outputs.wrapper-dir }}
+
+  scfw-version:
+    description: 'The installed version of supply-chain-firewall.'
+    value: ${{ steps.install-scfw.outputs.scfw-version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Supply Chain Firewall
+      id: install-scfw
+      shell: bash
+      env:
+        SCFW_VERSION: ${{ inputs.version }}
+      run: |
+        # Install pipx if not available
+        if ! command -v pipx &>/dev/null; then
+          pip install --quiet pipx
+          python -m pipx ensurepath
+        fi
+
+        if [ "$SCFW_VERSION" = "latest" ]; then
+          pipx install scfw --quiet
+        else
+          pipx install "scfw==$SCFW_VERSION" --quiet
+        fi
+
+        # Ensure pipx-managed binaries are on PATH for subsequent steps
+        PIPX_BIN_DIR="$(python -m site --user-base)/bin"
+        if [[ ":$PATH:" != *":$PIPX_BIN_DIR:"* ]]; then
+          echo "$PIPX_BIN_DIR" >> "$GITHUB_PATH"
+        fi
+
+        INSTALLED_VERSION="$(scfw --version 2>/dev/null || pipx run scfw --version 2>/dev/null)"
+        echo "scfw-version=$INSTALLED_VERSION" >> "$GITHUB_OUTPUT"
+        echo "Supply Chain Firewall installed: $INSTALLED_VERSION"
+
+    - name: Create package manager wrapper scripts
+      id: create-wrappers
+      shell: bash
+      env:
+        SCFW_PACKAGE_MANAGERS: ${{ inputs.package-managers }}
+        SCFW_ERROR_ON_BLOCK: ${{ inputs.error-on-block }}
+      run: |
+        WRAPPER_DIR="$RUNNER_TEMP/scfw-wrappers"
+        mkdir -p "$WRAPPER_DIR"
+
+        IFS=',' read -ra PMS <<< "$SCFW_PACKAGE_MANAGERS"
+        for pm in "${PMS[@]}"; do
+          pm="${pm// /}"  # strip whitespace
+
+          error_on_block_flag=""
+          if [ "$SCFW_ERROR_ON_BLOCK" = "true" ]; then
+            error_on_block_flag="--error-on-block"
+          fi
+
+          # The wrapper discovers the real binary at call time by stripping its
+          # own directory from PATH before searching. This means it naturally
+          # finds the venv's pip (or npm, etc.) when a venv is active, and falls
+          # back to the system binary otherwise — with no extra setup required.
+          cat > "$WRAPPER_DIR/$pm" << WRAPPER_EOF
+#!/bin/bash
+_wrapper_dir="\$(dirname "\$(realpath "\${BASH_SOURCE[0]}")")"
+_search_path="\$(printf '%s' "\$PATH" | tr ':' '\n' | grep -vxF "\$_wrapper_dir" | tr '\n' ':')"
+_real_bin="\$(PATH="\$_search_path" command -v $pm 2>/dev/null)"
+if [ -z "\$_real_bin" ]; then
+  echo "scfw: could not find '$pm' executable" >&2
+  exit 1
+fi
+exec scfw run --executable "\$_real_bin" $error_on_block_flag $pm "\$@"
+WRAPPER_EOF
+          chmod +x "$WRAPPER_DIR/$pm"
+          echo "Created wrapper: $pm (real binary resolved at call time)"
+        done
+
+        echo "wrapper-dir=$WRAPPER_DIR" >> "$GITHUB_OUTPUT"
+        echo "$WRAPPER_DIR" >> "$GITHUB_PATH"
+
+    - name: Configure Supply Chain Firewall environment
+      shell: bash
+      env:
+        INPUT_DD_API_KEY: ${{ inputs.dd-api-key }}
+        INPUT_DD_SITE: ${{ inputs.dd-site }}
+        INPUT_DD_LOG_LEVEL: ${{ inputs.dd-log-level }}
+        INPUT_SCFW_HOME: ${{ inputs.scfw-home }}
+      run: |
+        if [ -n "$INPUT_DD_API_KEY" ]; then
+          echo "SCFW_DD_API_LOGGER_ENABLED=1" >> "$GITHUB_ENV"
+          echo "DD_API_KEY=$INPUT_DD_API_KEY" >> "$GITHUB_ENV"
+          echo "DD_ENV=ci" >> "$GITHUB_ENV"
+        fi
+
+        if [ -n "$INPUT_DD_SITE" ]; then
+          echo "DD_SITE=$INPUT_DD_SITE" >> "$GITHUB_ENV"
+        fi
+
+        if [ -n "$INPUT_DD_LOG_LEVEL" ]; then
+          echo "SCFW_DD_LOG_LEVEL=$INPUT_DD_LOG_LEVEL" >> "$GITHUB_ENV"
+        fi
+
+        if [ -n "$INPUT_SCFW_HOME" ]; then
+          mkdir -p "$INPUT_SCFW_HOME"
+          echo "SCFW_HOME=$INPUT_SCFW_HOME" >> "$GITHUB_ENV"
+          echo "SCFW_LOG_FILE=$INPUT_SCFW_HOME/scfw.log" >> "$GITHUB_ENV"
+        fi
