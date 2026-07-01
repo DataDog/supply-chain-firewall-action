@@ -39,10 +39,20 @@ jobs:
           EOF
 
       - name: Run the action under test
+        id: run-action
         uses: ./
         with:
           scfw-home: /tmp/test-scfw-home
           error-on-block: 'true'
+
+      # --- version output ---
+
+      - name: scfw-version output is set
+        shell: bash
+        run: |
+          version="${{ steps.run-action.outputs.scfw-version }}"
+          echo "scfw-version output: $version"
+          [ -n "$version" ] || { echo "FAIL: scfw-version output is empty"; exit 1; }
 
       # --- Wrapper installation ---
 
@@ -77,3 +87,67 @@ jobs:
           fi
           echo "PASS: blocked package was correctly rejected"
 
+  test-on-warning:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      # Add requests to the blocklist at WARNING severity. With on-warning: 'ALLOW',
+      # the install should succeed despite the finding.
+      - name: Prepare scfw-home with warning-level blocklist entry
+        shell: bash
+        run: |
+          mkdir -p /tmp/test-scfw-home/list_verifier
+          cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
+          - package:
+              name: requests
+              ecosystem: PyPI
+            id: TEST-002
+            severity: WARNING
+            description: Test warning entry for Supply Chain Firewall action CI
+          EOF
+
+      - name: Run the action under test with on-warning set to ALLOW
+        uses: ./
+        with:
+          scfw-home: /tmp/test-scfw-home
+          error-on-block: 'true'
+          on-warning: 'ALLOW'
+
+      - name: Warning-level package installs successfully with on-warning ALLOW
+        shell: bash
+        run: pip install requests
+
+  test-package-minimum-age:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Run the action with a minimum package age suitable for testing
+        uses: ./
+        with:
+          error-on-block: 'true'
+          package-minimum-age: '8760000000'  # 1 million years in hours
+
+      - name: pip install fails due to package minimum age
+        shell: bash
+        run: |
+          if pip install requests; then
+            echo "FAIL: install should have been blocked by minimum age requirement"
+            exit 1
+          fi
+          echo "PASS: install correctly blocked by minimum age requirement"

@@ -30,6 +30,9 @@ jobs:
         with:
           scfw-home: ~/.scfw
           dd-api-key: ${{ secrets.DD_API_KEY }}
+          dd-api-logger: 'true'
+          dd-env: 'prod'
+          on-warning: 'BLOCK'
 
       # These commands are now transparently intercepted by Supply Chain Firewall.
       # Malicious packages are blocked before installation.
