@@ -1,59 +1,58 @@
-name: 'Supply Chain Firewall Setup'
+name: 'Deploy Supply Chain Firewall'
 description: >
-  Install Datadog Supply Chain Firewall and configure it to transparently intercept
+  Install Datadog's Supply Chain Firewall (SCFW) and configure it to transparently intercept
   package manager commands (pip, npm, poetry) for all subsequent steps in the job.
 
 inputs:
   version:
     description: >
-      Version of supply-chain-firewall to install. Use "latest" for the most
-      recent release (default), or pin to a specific version (e.g., "0.7.0").
+      The version of SCFW to install. Use "latest" for the most recent release (default),
+      or pin to a specific version (e.g., "0.7.0").
     required: false
     default: 'latest'
 
   package-managers:
     description: >
-      Comma-separated list of package managers to intercept. Supported values:
-      pip, npm, poetry. Defaults to all three.
+      Comma-separated list of package managers to intercept. Supported values: pip, npm, poetry.
+      Defaults to all three.
     required: false
     default: 'pip,npm,poetry'
 
   error-on-block:
     description: >
-      When "true" (default), blocked package installations cause the step to exit
-      with a non-zero code, failing the workflow. Set to "false" to allow the
-      workflow to continue even when installations are blocked.
+      When "true" (default), blocked package installations cause the step to exit with
+      a non-zero code, failing the workflow. Set to "false" to allow the workflow to continue
+      even when installations are blocked.
     required: false
     default: 'true'
 
   dd-api-key:
     description: >
-      Datadog API key for forwarding firewall events to the Datadog HTTP API.
-      When set, logging to Datadog is automatically enabled. Treat this value
-      as a secret.
+      Datadog API key for forwarding firewall events to the Datadog HTTP API. When set,
+      logging to Datadog is automatically enabled. Treat this value as a secret.
     required: false
     default: ''
 
   dd-site:
     description: >
-      Datadog site to send logs to (e.g., datadoghq.com, datadoghq.eu,
-      us3.datadoghq.com). Defaults to datadoghq.com when not specified.
+      Datadog site parameter specifying the data center where the user's Datadog org is hosted
+      (e.g., datadoghq.eu, us3.datadoghq.com). Defaults to datadoghq.com when not specified.
     required: false
     default: ''
 
   dd-log-level:
     description: >
-      Controls which firewall events are forwarded to Datadog. "ALLOW" logs all
-      events; "BLOCK" logs only blocked events. Defaults to "ALLOW" when
-      Datadog logging is enabled.
+      Controls which SCFW logs are forwarded to Datadog. "ALLOW" causes allowed and blocked
+      package manager commands to be logged; "BLOCK" causes only blocked commands to be logged.
+      Defaults to "ALLOW" when Datadog logging is enabled.
     required: false
     default: ''
 
   scfw-home:
     description: >
-      Directory for Supply Chain Firewall's local cache (verifier data, log file).
-      Defaults to a temporary directory when not specified. Set this to a
-      cached directory to speed up verifier data fetches across runs.
+      Directory for SCFW's local cache (verifier data, local log file). Defaults to a temporary
+      directory when not specified. Set this to a cached directory to speed up verifier data
+      fetches across runs.
     required: false
     default: ''
 
@@ -63,7 +62,7 @@ outputs:
     value: ${{ steps.create-wrappers.outputs.wrapper-dir }}
 
   scfw-version:
-    description: 'The installed version of supply-chain-firewall.'
+    description: 'The installed version of SCFW.'
     value: ${{ steps.install-scfw.outputs.scfw-version }}
 
 runs:
