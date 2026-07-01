@@ -101,10 +101,6 @@ inputs:
     default: 'ci'
 
 outputs:
-  wrapper-dir:
-    description: 'Path to the directory containing the package manager wrapper scripts.'
-    value: ${{ steps.create-wrappers.outputs.wrapper-dir }}
-
   scfw-version:
     description: 'The installed version of SCFW.'
     value: ${{ steps.install-scfw.outputs.scfw-version }}
@@ -172,7 +168,6 @@ runs:
           echo "Created wrapper: $pm (real binary resolved at call time)"
         done
 
-        echo "wrapper-dir=$WRAPPER_DIR" >> "$GITHUB_OUTPUT"
         echo "$WRAPPER_DIR" >> "$GITHUB_PATH"
 
     - name: Configure Supply Chain Firewall environment

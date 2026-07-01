@@ -79,7 +79,6 @@ steps:
 | Output | Description |
 |--------|-------------|
 | `scfw-version` | The installed version of `supply-chain-firewall`. |
-| `wrapper-dir` | Path to the directory containing the package manager wrapper scripts. |
 
 ## How it works
 
