@@ -11,6 +11,8 @@ steps:
   - uses: actions/checkout@v4
 
   - uses: DataDog/supply-chain-firewall-action@main
+    with:
+      version: '3.1.0'
 
   # pip, npm, and poetry are now intercepted by Supply Chain Firewall.
   # Malicious packages are blocked; clean installs proceed normally.
@@ -24,7 +26,6 @@ steps:
 steps:
   - uses: DataDog/supply-chain-firewall-action@main
     with:
-      version: '3.1.0'
       dd-api-key: ${{ secrets.DD_API_KEY }}
       dd-api-logger: 'true'
       dd-log-level: ALLOW
@@ -80,6 +81,7 @@ steps:
 
    Each wrapper resolves the real binary at call time by removing its own directory from `PATH` before searching, then passes the resolved path to `scfw run --executable`. This ensures Supply Chain Firewall always calls the real binary and never re-invokes the wrapper.
 
-   > **Virtual environments**: Activating a Python virtual environment (e.g., `source .venv/bin/activate`) shadows the Supply Chain Firewall wrappers for the remainder of that step. Use `scfw run pip install ...` explicitly for any commands run inside virtual environments.
+   > [!WARNING]
+   > Activating a Python virtual environment (e.g., `source .venv/bin/activate`) shadows the Supply Chain Firewall wrappers for the remainder of that step. Use `scfw run pip install ...` explicitly for any commands run inside virtual environments.
 
 3. **Configure**: Relevant environment variables (`DD_API_KEY`, `SCFW_HOME`, etc.) are written to `GITHUB_ENV` so they are available to all subsequent steps.
