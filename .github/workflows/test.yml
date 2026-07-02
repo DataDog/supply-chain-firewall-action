@@ -29,12 +29,12 @@ jobs:
         run: |
           mkdir -p /tmp/test-scfw-home/list_verifier
           cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
-          - package:
-              name: requests
-              ecosystem: PyPI
-            id: TEST-001
-            severity: CRITICAL
-            description: Test entry for Supply Chain Firewall action CI
+          findings:
+            - severity: CRITICAL
+              finding: Test entry for Supply Chain Firewall action CI
+              packages:
+                - name: requests
+                  ecosystem: PyPI
           EOF
 
       - name: Run the action under test
@@ -105,12 +105,12 @@ jobs:
         run: |
           mkdir -p /tmp/test-scfw-home/list_verifier
           cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
-          - package:
-              name: requests
-              ecosystem: PyPI
-            id: TEST-002
-            severity: WARNING
-            description: Test warning entry for Supply Chain Firewall action CI
+          findings:
+            - severity: WARNING
+              finding: Test warning entry for Supply Chain Firewall action CI
+              packages:
+                - name: requests
+                  ecosystem: PyPI
           EOF
 
       - name: Run the action under test with on-warning set to ALLOW
@@ -193,12 +193,12 @@ jobs:
         run: |
           mkdir -p /tmp/test-scfw-home/list_verifier
           cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
-          - package:
-              name: requests
-              ecosystem: PyPI
-            id: TEST-001
-            severity: CRITICAL
-            description: Test entry for Supply Chain Firewall action CI
+          findings:
+            - severity: CRITICAL
+              finding: Test entry for Supply Chain Firewall action CI
+              packages:
+                - name: requests
+                  ecosystem: PyPI
           EOF
 
       - name: Run the action with error-on-block disabled
