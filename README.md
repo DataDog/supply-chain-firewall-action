@@ -8,9 +8,9 @@ This action currently supports Linux and macOS runners. Windows support is not i
 
 ```yaml
 steps:
-  - uses: actions/checkout@v4
+  - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-  - uses: DataDog/supply-chain-firewall-action@main
+  - uses: DataDog/supply-chain-firewall-action@main # Ideally, pin to a definite commit hash
     with:
       version: '3.1.0'
 
@@ -39,7 +39,7 @@ Caching `SCFW_HOME` avoids re-fetching verifier data on each run:
 
 ```yaml
 steps:
-  - uses: actions/cache@v4
+  - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
     with:
       path: ~/.scfw
       key: scfw-${{ runner.os }}
