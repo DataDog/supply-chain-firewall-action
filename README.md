@@ -81,7 +81,6 @@ steps:
 
    Each wrapper resolves the real binary at call time by removing its own directory from `PATH` before searching, then passes the resolved path to `scfw run --executable`. This ensures Supply Chain Firewall always calls the real binary and never re-invokes the wrapper.
 
-   > [!WARNING]
-   > Activating a Python virtual environment (e.g., `source .venv/bin/activate`) shadows the Supply Chain Firewall wrappers for the remainder of that step. Use `scfw run pip install ...` explicitly for any commands run inside virtual environments.
+   > :warning: Activating a Python virtual environment (e.g., `source .venv/bin/activate`) shadows the Supply Chain Firewall wrappers for the remainder of that step. Use `scfw run pip install ...` explicitly for any commands run inside virtual environments.
 
 3. **Configure**: Relevant environment variables (`DD_API_KEY`, `SCFW_HOME`, etc.) are written to `GITHUB_ENV` so they are available to all subsequent steps.
