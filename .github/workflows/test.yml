@@ -30,8 +30,7 @@ jobs:
           mkdir -p /tmp/test-scfw-home/list_verifier
           cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
           - package:
-              name: scfw-test-blocked-package
-              version: "0.0.1"
+              name: requests
               ecosystem: PyPI
             id: TEST-001
             severity: CRITICAL
@@ -74,14 +73,14 @@ jobs:
 
       - name: Clean pip install succeeds
         shell: bash
-        run: pip install requests
+        run: pip install urllib3
 
       # --- Blocking: a blocklisted package is rejected ---
 
       - name: Blocked pip install fails
         shell: bash
         run: |
-          if pip install scfw-test-blocked-package==0.0.1; then
+          if pip install requests; then
             echo "FAIL: blocked package was not rejected"
             exit 1
           fi
@@ -195,8 +194,7 @@ jobs:
           mkdir -p /tmp/test-scfw-home/list_verifier
           cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
           - package:
-              name: scfw-test-blocked-package
-              version: "0.0.1"
+              name: requests
               ecosystem: PyPI
             id: TEST-001
             severity: CRITICAL
@@ -212,7 +210,7 @@ jobs:
       - name: Blocked pip install exits cleanly with error-on-block false
         shell: bash
         run: |
-          pip install scfw-test-blocked-package==0.0.1
+          pip install requests
           echo "PASS: blocked install did not fail the step"
 
   test-package-managers-subset:
