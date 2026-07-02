@@ -100,6 +100,13 @@ inputs:
     required: false
     default: 'ci'
 
+  dd-log-attributes:
+    description: >
+      A JSON object of custom attributes to attach to all forwarded Datadog log events
+      (sets SCFW_DD_LOG_ATTRIBUTES). Example: '{"team":"security","repo":"my-repo"}'.
+    required: false
+    default: ''
+
 outputs:
   scfw-version:
     description: 'The installed version of SCFW.'
@@ -180,6 +187,7 @@ runs:
         INPUT_DD_SITE: ${{ inputs.dd-site }}
         INPUT_DD_LOG_LEVEL: ${{ inputs.dd-log-level }}
         INPUT_DD_ENV: ${{ inputs.dd-env }}
+        INPUT_DD_LOG_ATTRIBUTES: ${{ inputs.dd-log-attributes }}
         INPUT_SCFW_HOME: ${{ inputs.scfw-home }}
         INPUT_ON_WARNING: ${{ inputs.on-warning }}
         INPUT_PACKAGE_MINIMUM_AGE: ${{ inputs.package-minimum-age }}
@@ -209,6 +217,10 @@ runs:
         fi
 
         echo "DD_ENV=$INPUT_DD_ENV" >> "$GITHUB_ENV"
+
+        if [ -n "$INPUT_DD_LOG_ATTRIBUTES" ]; then
+          echo "SCFW_DD_LOG_ATTRIBUTES=$INPUT_DD_LOG_ATTRIBUTES" >> "$GITHUB_ENV"
+        fi
 
         if [ -n "$INPUT_SCFW_HOME" ]; then
           mkdir -p "$INPUT_SCFW_HOME"
