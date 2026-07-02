@@ -65,7 +65,7 @@ steps:
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `version` | Version of `supply-chain-firewall` to install. Use `"latest"` or pin to a specific release (e.g., `"0.7.0"`). | `latest` |
+| `version` | The version of SCFW to install. Use `"latest"` or pin to a specific release (e.g., `"0.7.0"`). | `latest` |
 | `package-managers` | Comma-separated list of package managers to intercept. Supported: `pip`, `npm`, `poetry`. | `pip,npm,poetry` |
 | `error-on-block` | Exit with a non-zero code when an installation is blocked, failing the workflow step. | `true` |
 | `dd-api-key` | Datadog API key for forwarding firewall events to the Datadog HTTP or Code Security API. Use `${{ secrets.DD_API_KEY }}`. | — |
