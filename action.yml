@@ -132,7 +132,7 @@ runs:
         fi
 
         # Ensure pipx-managed binaries are on PATH for subsequent steps
-        PIPX_BIN_DIR="$(python -m site --user-base)/bin"
+        PIPX_BIN_DIR="$(pipx environment --value PIPX_BIN_DIR)"
         echo "$PIPX_BIN_DIR" >> "$GITHUB_PATH"
 
         INSTALLED_VERSION="$("$PIPX_BIN_DIR/scfw" --version)"
