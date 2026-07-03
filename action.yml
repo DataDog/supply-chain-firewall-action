@@ -58,17 +58,15 @@ inputs:
     description: >
       Datadog site parameter specifying the data center where the user's Datadog org is hosted
       (e.g., datadoghq.eu, us3.datadoghq.com). Used by both dd-api-logger and dd-codesec-logger.
-      Defaults to datadoghq.com when not specified.
     required: false
-    default: ''
+    default: 'datadoghq.com'
 
   dd-log-level:
     description: >
       Controls which SCFW logs are forwarded to Datadog. "ALLOW" causes allowed and blocked
       package manager commands to be logged; "BLOCK" causes only blocked commands to be logged.
-      Defaults to "ALLOW" when Datadog logging is enabled.
     required: false
-    default: ''
+    default: 'ALLOW'
 
   scfw-home:
     description: >
@@ -135,11 +133,9 @@ runs:
 
         # Ensure pipx-managed binaries are on PATH for subsequent steps
         PIPX_BIN_DIR="$(python -m site --user-base)/bin"
-        if [[ ":$PATH:" != *":$PIPX_BIN_DIR:"* ]]; then
-          echo "$PIPX_BIN_DIR" >> "$GITHUB_PATH"
-        fi
+        echo "$PIPX_BIN_DIR" >> "$GITHUB_PATH"
 
-        INSTALLED_VERSION="$(scfw --version 2>/dev/null || pipx run scfw --version 2>/dev/null)"
+        INSTALLED_VERSION="$("$PIPX_BIN_DIR/scfw" --version)"
         echo "scfw-version=$INSTALLED_VERSION" >> "$GITHUB_OUTPUT"
         echo "Supply Chain Firewall installed: $INSTALLED_VERSION"
 
@@ -156,6 +152,11 @@ runs:
         IFS=',' read -ra PMS <<< "$SCFW_PACKAGE_MANAGERS"
         for pm in "${PMS[@]}"; do
           pm="${pm// /}"  # strip whitespace
+
+          case "$pm" in
+            pip|npm|poetry) ;;
+            *) echo "Unsupported package manager: '$pm'" >&2; exit 1 ;;
+          esac
 
           error_on_block_flag=""
           if [ "$SCFW_ERROR_ON_BLOCK" = "true" ]; then
@@ -208,13 +209,8 @@ runs:
           echo "SCFW_DD_CODESEC_LOGGER_ENABLED=1" >> "$GITHUB_ENV"
         fi
 
-        if [ -n "$INPUT_DD_SITE" ]; then
-          echo "DD_SITE=$INPUT_DD_SITE" >> "$GITHUB_ENV"
-        fi
-
-        if [ -n "$INPUT_DD_LOG_LEVEL" ]; then
-          echo "SCFW_DD_LOG_LEVEL=$INPUT_DD_LOG_LEVEL" >> "$GITHUB_ENV"
-        fi
+        echo "DD_SITE=$INPUT_DD_SITE" >> "$GITHUB_ENV"
+        echo "SCFW_DD_LOG_LEVEL=$INPUT_DD_LOG_LEVEL" >> "$GITHUB_ENV"
 
         echo "DD_ENV=$INPUT_DD_ENV" >> "$GITHUB_ENV"
 
