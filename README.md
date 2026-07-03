@@ -61,6 +61,8 @@ steps:
 
 3. **Configure**: Relevant environment variables (`DD_API_KEY`, `SCFW_HOME`, etc.) are written to `GITHUB_ENV` so they are available to all subsequent steps.
 
+   > :warning: Environment variables written to `GITHUB_ENV` are accessible to all subsequent steps in the job, including any third-party actions that run after this one. If you supply `dd-api-key` or `dd-app-key`, audit the actions that follow in your workflow to ensure none are untrusted or compromised.
+
 ## Inputs
 
 | Input | Description | Default |
