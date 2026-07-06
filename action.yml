@@ -1,7 +1,7 @@
 name: 'Deploy Supply Chain Firewall'
 description: >
   Install Datadog's Supply Chain Firewall (SCFW) and configure it to transparently intercept
-  package manager commands (pip, npm, poetry) for all subsequent steps in the job.
+  supported package manager commands (npm, pip, poetry) for all subsequent steps in the job.
 
 inputs:
   version:
@@ -13,10 +13,10 @@ inputs:
 
   package-managers:
     description: >
-      Comma-separated list of package managers to intercept. Supported values: pip, npm, poetry.
-      Defaults to all three.
+      Comma-separated list of the package managers whose commands should be inspected.
+      Supported values: pip, npm, poetry. Defaults to all three.
     required: false
-    default: 'pip,npm,poetry'
+    default: 'npm,pip,poetry'
 
   error-on-block:
     description: >
