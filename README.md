@@ -1,8 +1,8 @@
 # supply-chain-firewall-action
 
-A GitHub Action that installs Datadog's [Supply Chain Firewall](https://github.com/DataDog/supply-chain-firewall) (SCFW) and configures it to transparently intercept package manager commands (`pip`, `npm`, `poetry`) for all subsequent steps in a job.  When active, any command for a supported package manager is inspected with SCFW before being allowed to run.
+A GitHub Action that installs Datadog's [Supply Chain Firewall](https://github.com/DataDog/supply-chain-firewall) (SCFW) and configures it to transparently intercept supported package manager commands for all subsequent steps in a job.  When active, any command for a supported package manager is inspected with SCFW before being allowed to run.
 
-This action currently supports Linux and macOS runners. Windows support is not included.
+This action currently supports Linux and macOS runners. Windows runners are not supported, as SCFW itself is not currently supported on Windows.
 
 ## Usage
 
@@ -13,8 +13,9 @@ steps:
   - uses: DataDog/supply-chain-firewall-action@main # Ideally, pin to a definite commit hash
     with:
       version: '3.1.0'
+      package-managers: npm,pip
 
-  # pip, npm, and poetry are now intercepted by Supply Chain Firewall.
+  # npm and pip commands are now transparently intercepted by SCFW.
   # Malicious packages are blocked; clean installs proceed normally.
   - run: pip install -r requirements.txt
   - run: npm install
