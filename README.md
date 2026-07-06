@@ -10,7 +10,7 @@ This action currently supports Linux and macOS runners. Windows runners are not 
 steps:
   - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-  - uses: DataDog/supply-chain-firewall-action@main # Ideally, pin to a definite commit hash
+  - uses: DataDog/supply-chain-firewall-action@2f166ae1d2c34ed717d7b08427c7acb57804f3f5 # v1.0.0
     with:
       version: '3.1.0'
       package-managers: npm,pip
@@ -25,7 +25,7 @@ steps:
 
 ```yaml
 steps:
-  - uses: DataDog/supply-chain-firewall-action@main
+  - uses: DataDog/supply-chain-firewall-action@2f166ae1d2c34ed717d7b08427c7acb57804f3f5 # v1.0.0
     with:
       dd-api-key: ${{ secrets.DD_API_KEY }}
       dd-api-logger: 'true'
@@ -45,7 +45,7 @@ steps:
       path: ~/.scfw
       key: scfw-${{ runner.os }}
 
-  - uses: DataDog/supply-chain-firewall-action@main
+  - uses: DataDog/supply-chain-firewall-action@2f166ae1d2c34ed717d7b08427c7acb57804f3f5 # v1.0.0
     with:
       scfw-home: ~/.scfw
 ```

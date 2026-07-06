@@ -26,7 +26,7 @@ jobs:
           key: scfw-${{ runner.os }}
 
       # Install and configure Supply Chain Firewall
-      - uses: DataDog/supply-chain-firewall-action@main # Ideally, pin to a definite commit hash
+      - uses: DataDog/supply-chain-firewall-action@2f166ae1d2c34ed717d7b08427c7acb57804f3f5 # v1.0.0
         with:
           scfw-home: ~/.scfw
           dd-api-key: ${{ secrets.DD_API_KEY }}
