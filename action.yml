@@ -122,8 +122,23 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Select configuration path
+      id: configuration-path
+      shell: bash
+      env:
+        SCFW_VERSION: ${{ inputs.version }}
+      run: |
+        use_codesec_path=false
+        major_version="${SCFW_VERSION%%.*}"
+        if [[ -z "$SCFW_VERSION" || "$SCFW_VERSION" == "latest" ]]; then
+          use_codesec_path=true
+        elif [[ "$major_version" =~ ^[0-9]+$ ]] && (( 10#$major_version >= 4 )); then
+          use_codesec_path=true
+        fi
+        echo "use-codesec-path=$use_codesec_path" >> "$GITHUB_OUTPUT"
+
     - name: Configure Code Security logger
-      if: ${{ inputs.dd-codesec-logger == 'true' && (inputs.version == '' || inputs.version == 'latest' || startsWith(inputs.version, '4.')) }}
+      if: ${{ inputs.dd-codesec-logger == 'true' && steps.configuration-path.outputs.use-codesec-path == 'true' }}
       id: codesec-path
       shell: bash
       env:
@@ -136,7 +151,7 @@ runs:
       run: "$GITHUB_ACTION_PATH/scripts/codesec-logger-enabled.sh"
 
     - name: Configure Supply Chain Firewall
-      if: ${{ inputs.dd-codesec-logger != 'true' || (inputs.version != '' && inputs.version != 'latest' && !startsWith(inputs.version, '4.')) }}
+      if: ${{ inputs.dd-codesec-logger != 'true' || steps.configuration-path.outputs.use-codesec-path != 'true' }}
       id: standard-path
       shell: bash
       env:
