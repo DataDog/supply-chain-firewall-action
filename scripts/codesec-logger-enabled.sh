@@ -31,7 +31,7 @@ install_scfw() {
   local asset
   local install_dir="$RUNNER_TEMP/scfw-bin"
   local binary_path="$install_dir/scfw"
-  local checksums_path="$install_dir/supply-chain-firewall_SHA256SUMS"
+  local checksums_path="$install_dir/scfw_SHA256SUMS"
 
   case "$(uname -s)" in
     Linux) os="linux" ;;
@@ -45,14 +45,14 @@ install_scfw() {
     *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
   esac
 
-  asset="supply-chain-firewall-${os}-${arch}"
+  asset="scfw-${os}-${arch}"
   mkdir -p "$install_dir"
 
   curl --fail --silent --show-error --location \
     "$RELEASE_BASE_URL/$asset" \
     --output "$binary_path"
   curl --fail --silent --show-error --location \
-    "$RELEASE_BASE_URL/supply-chain-firewall_SHA256SUMS" \
+    "$RELEASE_BASE_URL/scfw_SHA256SUMS" \
     --output "$checksums_path"
 
   verify_checksum "$asset" "$binary_path" "$checksums_path"
@@ -88,36 +88,49 @@ verify_checksum() {
   fi
 }
 
-configure_scfw() {
-  local scfw="$RUNNER_TEMP/scfw-bin/scfw"
+create_package_manager_wrappers() {
+  local wrapper_dir="$RUNNER_TEMP/scfw-wrappers"
   local pm
   local -a package_managers
-  local -a configure_args
 
+  mkdir -p "$wrapper_dir"
   IFS=',' read -ra package_managers <<< "$SCFW_PACKAGE_MANAGERS"
   for pm in "${package_managers[@]}"; do
     pm="${pm// /}"
-    configure_args+=("--alias-$pm")
+
+    sed \
+      -e "s|SCFW_PM_NAME|$pm|g" \
+      -e "s|SCFW_EXTRA_FLAGS |-- |g" \
+      "$GITHUB_ACTION_PATH/scripts/pm-wrapper.sh.template" \
+      > "$wrapper_dir/$pm"
+    chmod +x "$wrapper_dir/$pm"
+    echo "Created wrapper: $pm (real binary resolved at call time)"
   done
 
-  configure_args+=("--dd-api-key=$INPUT_DD_API_KEY")
-  configure_args+=("--dd-app-key=$INPUT_DD_APP_KEY")
+  echo "$wrapper_dir" >> "$GITHUB_PATH"
+}
+
+configure_scfw_environment() {
+  echo "DD_API_KEY=$INPUT_DD_API_KEY" >> "$GITHUB_ENV"
+  echo "DD_APP_KEY=$INPUT_DD_APP_KEY" >> "$GITHUB_ENV"
+  echo "SCFW_DD_CODESEC_LOGGER_ENABLED=1" >> "$GITHUB_ENV"
+
   if [ -n "$INPUT_DD_SITE" ]; then
-    configure_args+=("--dd-site=$INPUT_DD_SITE")
-  fi
-  if [ -n "$INPUT_SCFW_HOME" ]; then
-    mkdir -p "$INPUT_SCFW_HOME"
-    configure_args+=("--scfw-home=$INPUT_SCFW_HOME")
+    echo "DD_SITE=$INPUT_DD_SITE" >> "$GITHUB_ENV"
   fi
 
-  "$scfw" configure "${configure_args[@]}"
+  if [ -n "$INPUT_SCFW_HOME" ]; then
+    mkdir -p "$INPUT_SCFW_HOME"
+    echo "SCFW_HOME=$INPUT_SCFW_HOME" >> "$GITHUB_ENV"
+  fi
 }
 
 main() {
   warn_deprecated_inputs
   validate_required_inputs
   install_scfw
-  configure_scfw
+  create_package_manager_wrappers
+  configure_scfw_environment
 }
 
 main "$@"
