@@ -1,8 +1,10 @@
 #!/bin/bash
 set -eo pipefail
 
+readonly LATEST_PREVIEW_VERSION="4.0.0"
+
 if [ -z "$SCFW_VERSION" ] || [ "$SCFW_VERSION" = "latest" ]; then
-  SCFW_VERSION="4.0.0"
+  SCFW_VERSION="$LATEST_PREVIEW_VERSION"
 fi
 readonly SCFW_VERSION
 readonly RELEASE_BASE_URL="https://github.com/DataDog/supply-chain-firewall/releases/download/v${SCFW_VERSION}"

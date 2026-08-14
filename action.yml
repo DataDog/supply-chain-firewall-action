@@ -6,8 +6,10 @@ description: >
 inputs:
   version:
     description: >
-      The version of SCFW to install. Use "latest" for the most recent release (default),
-      or pin to a specific version (e.g., "0.7.0").
+      The version of SCFW to install. When Code Security logging is disabled, "latest"
+      installs the most recent release. For the preview Code Security integration, "latest"
+      installs the action's approved preview version. Set an explicit
+      version to override the applicable default (e.g., "3.2.0" or "4.0.0").
     required: false
     default: 'latest'
 
