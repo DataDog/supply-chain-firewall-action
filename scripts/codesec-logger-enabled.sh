@@ -98,6 +98,11 @@ create_package_manager_wrappers() {
   for pm in "${package_managers[@]}"; do
     pm="${pm// /}"
 
+    case "$pm" in
+      pip|npm|poetry) ;;
+      *) echo "Unsupported package manager: '$pm'" >&2; exit 1 ;;
+    esac
+
     sed \
       -e "s|SCFW_PM_NAME|$pm|g" \
       -e "s|SCFW_EXTRA_FLAGS |-- |g" \
