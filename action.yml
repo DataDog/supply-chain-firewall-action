@@ -58,6 +58,14 @@ inputs:
     required: false
     default: 'false'
 
+  debug:
+    description: >
+      When "true", enables local SCFW debug logging for package manager commands intercepted
+      by the Code Security path. Debug logs may include Code Security API request and response
+      bodies, so review workflow logs before sharing them.
+    required: false
+    default: 'false'
+
   dd-site:
     description: >
       Datadog site parameter specifying the data center where the user's Datadog org is hosted
@@ -148,6 +156,7 @@ runs:
         INPUT_DD_APP_KEY: ${{ inputs.dd-app-key }}
         INPUT_DD_SITE: ${{ inputs.dd-site }}
         INPUT_SCFW_HOME: ${{ inputs.scfw-home }}
+        INPUT_DEBUG: ${{ inputs.debug }}
       run: "$GITHUB_ACTION_PATH/scripts/codesec-logger-enabled.sh"
 
     - name: Configure Supply Chain Firewall

@@ -23,6 +23,11 @@ validate_required_inputs() {
     echo "dd-app-key is required when dd-codesec-logger is enabled" >&2
     exit 1
   fi
+
+  if [ "$INPUT_DEBUG" != "true" ] && [ "$INPUT_DEBUG" != "false" ]; then
+    echo "debug must be either 'true' or 'false'" >&2
+    exit 1
+  fi
 }
 
 install_scfw() {
@@ -48,6 +53,9 @@ install_scfw() {
   asset="scfw-${os}-${arch}"
   mkdir -p "$install_dir"
 
+  echo "Installing Supply Chain Firewall v${SCFW_VERSION} for ${os}/${arch}"
+  echo "Downloading release binary and checksum manifest"
+
   curl --fail --silent --show-error --location \
     "$RELEASE_BASE_URL/$asset" \
     --output "$binary_path"
@@ -56,6 +64,7 @@ install_scfw() {
     --output "$checksums_path"
 
   verify_checksum "$asset" "$binary_path" "$checksums_path"
+  echo "Verified SHA-256 checksum for $asset"
   chmod +x "$binary_path"
 
   echo "$install_dir" >> "$GITHUB_PATH"
@@ -91,9 +100,18 @@ verify_checksum() {
 create_package_manager_wrappers() {
   local wrapper_dir="$RUNNER_TEMP/scfw-wrappers"
   local pm
+  local scfw_extra_flags=""
   local -a package_managers
 
+  if [ "$INPUT_DEBUG" = "true" ]; then
+    scfw_extra_flags="--log-level DEBUG"
+    echo "SCFW debug logging is enabled for intercepted package manager commands"
+  else
+    echo "SCFW debug logging is disabled"
+  fi
+
   mkdir -p "$wrapper_dir"
+  echo "Creating package manager wrappers in $wrapper_dir"
   IFS=',' read -ra package_managers <<< "$SCFW_PACKAGE_MANAGERS"
   for pm in "${package_managers[@]}"; do
     pm="${pm// /}"
@@ -105,7 +123,7 @@ create_package_manager_wrappers() {
 
     sed \
       -e "s|SCFW_PM_NAME|$pm|g" \
-      -e "s|SCFW_EXTRA_FLAGS |-- |g" \
+      -e "s|SCFW_EXTRA_FLAGS |${scfw_extra_flags:+$scfw_extra_flags }-- |g" \
       "$GITHUB_ACTION_PATH/scripts/pm-wrapper.sh.template" \
       > "$wrapper_dir/$pm"
     chmod +x "$wrapper_dir/$pm"
@@ -116,6 +134,7 @@ create_package_manager_wrappers() {
 }
 
 configure_scfw_environment() {
+  echo "Configuring the Datadog Code Security logger (site: ${INPUT_DD_SITE:-datadoghq.com})"
   echo "DD_API_KEY=$INPUT_DD_API_KEY" >> "$GITHUB_ENV"
   echo "DD_APP_KEY=$INPUT_DD_APP_KEY" >> "$GITHUB_ENV"
   echo "SCFW_DD_CODESEC_LOGGER_ENABLED=1" >> "$GITHUB_ENV"
@@ -127,7 +146,11 @@ configure_scfw_environment() {
   if [ -n "$INPUT_SCFW_HOME" ]; then
     mkdir -p "$INPUT_SCFW_HOME"
     echo "SCFW_HOME=$INPUT_SCFW_HOME" >> "$GITHUB_ENV"
+    echo "Using persistent SCFW cache directory: $INPUT_SCFW_HOME"
+  else
+    echo "Using SCFW's default temporary cache directory"
   fi
+  echo "Supply Chain Firewall configuration complete"
 }
 
 main() {
