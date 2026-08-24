@@ -22,251 +22,109 @@ jobs:
         with:
           node-version: '20'
 
-      # Set up a custom blocklist so we can test blocking without relying
-      # on the live malicious-package database.
-      - name: Prepare scfw-home with custom blocklist
-        shell: bash
-        run: |
-          mkdir -p /tmp/test-scfw-home/list_verifier
-          cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
-          findings:
-            - severity: CRITICAL
-              finding: Test entry for Supply Chain Firewall action CI
-              packages:
-                - name: requests
-                  ecosystem: PyPI
-          EOF
-
       - name: Run the action under test
         id: run-action
         uses: ./
         with:
-          scfw-home: /tmp/test-scfw-home
-          error-on-block: 'true'
+          version: '4.0.0'
+          package-managers: npm,pip
+          dd-api-key: test-api-key
+          dd-app-key: test-app-key
 
-      # --- version output ---
-
-      - name: scfw-version output is set
+      - name: Go binary and version output are available
         shell: bash
         run: |
-          version="${{ steps.run-action.outputs.scfw-version }}"
-          echo "scfw-version output: $version"
-          [ -n "$version" ] || { echo "FAIL: scfw-version output is empty"; exit 1; }
+          output_version="${{ steps.run-action.outputs.scfw-version }}"
+          command_version="$(scfw --version)"
+          echo "action output: $output_version"
+          echo "installed binary: $command_version"
+          [[ "$output_version" == "4.0.0" ]]
+          [[ "$command_version" == *"4.0.0"* ]]
 
-      # --- Wrapper installation ---
-
-      - name: pip wrapper is in PATH
+      - name: Requested package managers are wrapped
         shell: bash
         run: |
-          wrapper="$(which pip)"
-          echo "pip resolves to: $wrapper"
-          [[ "$wrapper" == *"scfw-wrappers"* ]] || { echo "FAIL: pip wrapper not active"; exit 1; }
+          pip_wrapper="$(which pip)"
+          npm_wrapper="$(which npm)"
+          echo "pip resolves to: $pip_wrapper"
+          echo "npm resolves to: $npm_wrapper"
+          [[ "$pip_wrapper" == *"scfw-wrappers"* ]]
+          [[ "$npm_wrapper" == *"scfw-wrappers"* ]]
+          grep -q -- '--error-on-block --' "$pip_wrapper"
 
-      - name: npm wrapper is in PATH
+      - name: Unrequested package managers are not wrapped
         shell: bash
         run: |
-          wrapper="$(which npm)"
-          echo "npm resolves to: $wrapper"
-          [[ "$wrapper" == *"scfw-wrappers"* ]] || { echo "FAIL: npm wrapper not active"; exit 1; }
+          poetry_path="$(command -v poetry || true)"
+          [[ "$poetry_path" != *"scfw-wrappers"* ]]
 
-      # --- Pass-through: a clean package installs normally ---
-
-      - name: Clean pip install succeeds
-        shell: bash
-        run: pip install urllib3
-
-      # --- Blocking: a blocklisted package is rejected ---
-
-      - name: Blocked pip install fails
+      - name: Go CLI environment is configured
         shell: bash
         run: |
-          if pip install requests; then
-            echo "FAIL: blocked package was not rejected"
-            exit 1
-          fi
-          echo "PASS: blocked package was correctly rejected"
+          [[ "$DD_API_KEY" == "test-api-key" ]]
+          [[ "$DD_APP_KEY" == "test-app-key" ]]
+          [[ "$DD_SITE" == "datadoghq.com" ]]
 
-  test-on-warning:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  test-options:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: '3.12'
-
-      # Add requests to the blocklist at WARNING severity. With on-warning: 'ALLOW',
-      # the install should succeed despite the finding.
-      - name: Prepare scfw-home with warning-level blocklist entry
-        shell: bash
-        run: |
-          mkdir -p /tmp/test-scfw-home/list_verifier
-          cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
-          findings:
-            - severity: WARNING
-              finding: Test warning entry for Supply Chain Firewall action CI
-              packages:
-                - name: requests
-                  ecosystem: PyPI
-          EOF
-
-      - name: Run the action under test with on-warning set to ALLOW
+      - name: Run with optional Go CLI settings
         uses: ./
         with:
-          scfw-home: /tmp/test-scfw-home
-          error-on-block: 'true'
-          on-warning: 'ALLOW'
-
-      - name: Warning-level package installs successfully with on-warning ALLOW
-        shell: bash
-        run: pip install requests
-
-  test-package-minimum-age:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: '3.12'
-
-      - name: Run the action with a minimum package age suitable for testing
-        uses: ./
-        with:
-          error-on-block: 'true'
-          package-minimum-age: '8760000000'  # 1 million years in hours
-
-      - name: pip install fails due to package minimum age
-        shell: bash
-        run: |
-          if pip install requests; then
-            echo "FAIL: install should have been blocked by minimum age requirement"
-            exit 1
-          fi
-          echo "PASS: install correctly blocked by minimum age requirement"
-
-  test-version-pinning:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: '3.12'
-
-      - name: Run the action with a pinned SCFW version
-        id: run-action
-        uses: ./
-        with:
-          version: '2.6.1'
-
-      - name: scfw-version output matches pinned version
-        shell: bash
-        run: |
-          version="${{ steps.run-action.outputs.scfw-version }}"
-          echo "scfw-version output: $version"
-          [[ "$version" == *"2.6.1"* ]] || { echo "FAIL: expected version 2.6.1, got '$version'"; exit 1; }
-
-  test-error-on-block-false:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: '3.12'
-
-      - name: Prepare scfw-home with custom blocklist
-        shell: bash
-        run: |
-          mkdir -p /tmp/test-scfw-home/list_verifier
-          cat > /tmp/test-scfw-home/list_verifier/test-blocklist.yml << 'EOF'
-          findings:
-            - severity: CRITICAL
-              finding: Test entry for Supply Chain Firewall action CI
-              packages:
-                - name: requests
-                  ecosystem: PyPI
-          EOF
-
-      - name: Run the action with error-on-block disabled
-        uses: ./
-        with:
-          scfw-home: /tmp/test-scfw-home
+          version: '4.0.0'
+          package-managers: pip
           error-on-block: 'false'
+          debug: 'true'
+          on-warning: 'ALLOW'
+          scfw-home: /tmp/test-scfw-home
+          dd-site: datadoghq.eu
+          dd-api-key: test-api-key
+          dd-app-key: test-app-key
 
-      - name: Blocked pip install exits cleanly with error-on-block false
+      - name: Optional settings are applied
         shell: bash
         run: |
-          pip install requests
-          echo "PASS: blocked install did not fail the step"
+          pip_wrapper="$(which pip)"
+          grep -q -- '--log-level DEBUG --' "$pip_wrapper"
+          if grep -q -- '--error-on-block' "$pip_wrapper"; then
+            echo "error-on-block should not be enabled" >&2
+            exit 1
+          fi
+          [[ "$SCFW_ON_WARNING" == "ALLOW" ]]
+          [[ "$SCFW_HOME" == "/tmp/test-scfw-home" ]]
+          [[ "$DD_SITE" == "datadoghq.eu" ]]
+          [[ -d "$SCFW_HOME" ]]
 
-  test-package-managers-subset:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  test-validation:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: '3.12'
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: '20'
-
-      - name: Run the action with only pip in package-managers
+      - name: Reject a legacy Python release
+        id: legacy-version
+        continue-on-error: true
         uses: ./
         with:
-          package-managers: 'pip'
+          version: '3.1.0'
+          dd-api-key: test-api-key
+          dd-app-key: test-app-key
 
-      - name: pip wrapper is in PATH
+      - name: Legacy release was rejected
         shell: bash
-        run: |
-          wrapper="$(which pip)"
-          echo "pip resolves to: $wrapper"
-          [[ "$wrapper" == *"scfw-wrappers"* ]] || { echo "FAIL: pip wrapper not active"; exit 1; }
+        run: test "${{ steps.legacy-version.outcome }}" = failure
 
-      - name: npm wrapper is not in PATH
-        shell: bash
-        run: |
-          wrapper="$(which npm)"
-          echo "npm resolves to: $wrapper"
-          [[ "$wrapper" != *"scfw-wrappers"* ]] || { echo "FAIL: npm should not be wrapped"; exit 1; }
-
-  test-dd-log-attributes:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: '3.12'
-
-      - name: Run the action with custom log attributes
+      - name: Reject an unsupported package manager
+        id: unsupported-package-manager
+        continue-on-error: true
         uses: ./
         with:
-          dd-log-attributes: '{"team":"security"}'
+          version: '4.0.0'
+          package-managers: pip,bundler
+          dd-api-key: test-api-key
+          dd-app-key: test-app-key
 
-      - name: SCFW_DD_LOG_ATTRIBUTES is set correctly
+      - name: Unsupported package manager was rejected
         shell: bash
-        run: |
-          echo "SCFW_DD_LOG_ATTRIBUTES=$SCFW_DD_LOG_ATTRIBUTES"
-          [[ "$SCFW_DD_LOG_ATTRIBUTES" == '{"team":"security"}' ]] || { echo "FAIL: unexpected value '$SCFW_DD_LOG_ATTRIBUTES'"; exit 1; }
+        run: test "${{ steps.unsupported-package-manager.outcome }}" = failure

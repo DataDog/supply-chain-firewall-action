@@ -1,167 +1,79 @@
 name: 'Deploy Supply Chain Firewall'
 description: >
-  Install Datadog's Supply Chain Firewall (SCFW) and configure it to transparently intercept
-  supported package manager commands (npm, pip, poetry) for all subsequent steps in the job.
+  Install the Go version of Datadog's Supply Chain Firewall (SCFW) and configure it to
+  transparently intercept supported package manager commands for all subsequent job steps.
 
 inputs:
   version:
     description: >
-      The version of SCFW to install. When Code Security logging is disabled, "latest"
-      installs the most recent release. For the preview Code Security integration, "latest"
-      installs the action's approved preview version. Set an explicit
-      version to override the applicable default (e.g., "3.2.0" or "4.0.0").
+      The Go-based SCFW release to install. Use "latest" for the most recent release,
+      or pin to an explicit v4+ version (for example, "4.0.0").
     required: false
     default: 'latest'
 
   package-managers:
     description: >
-      Comma-separated list of the package managers whose commands should be inspected.
-      Supported values: pip, npm, poetry. Defaults to all three.
+      Comma-separated list of package managers whose commands should be inspected.
+      Supported values: pip, npm, poetry.
     required: false
     default: 'npm,pip,poetry'
 
   error-on-block:
     description: >
-      Deprecated since SCFW v4.0.0 and ignored by the Code Security path.
-      When "true" (default), blocked package installations cause the step to exit with
-      a non-zero code, failing the workflow. Set to "false" to allow the workflow to continue
-      even when installations are blocked.
+      When "true", blocked package installations exit with a non-zero status and fail
+      the workflow step. Set to "false" to let blocked commands exit successfully.
     required: false
     default: 'true'
 
   dd-api-key:
     description: >
-      Datadog API key for forwarding firewall events to the Datadog HTTP API.
+      Datadog API key used for Code Security policy evaluation and reporting.
       Treat this value as a secret.
-    required: false
-    default: ''
+    required: true
 
   dd-app-key:
     description: >
-      Datadog application key. Required when using dd-codesec-logger.
+      Datadog application key used for Code Security policy evaluation and reporting.
       Treat this value as a secret.
-    required: false
-    default: ''
-
-  dd-api-logger:
-    description: >
-      Deprecated since SCFW v4.0.0 and ignored by the Code Security path.
-      When "true", enables SCFW's Datadog HTTP API logger (sets SCFW_DD_API_LOGGER_ENABLED).
-      Requires dd-api-key to be set.
-    required: false
-    default: 'false'
-
-  dd-codesec-logger:
-    description: >
-      When "true", enables SCFW's Datadog Code Security logger (sets SCFW_DD_CODESEC_LOGGER_ENABLED).
-      Requires both dd-api-key and dd-app-key to be set.
-    required: false
-    default: 'false'
+    required: true
 
   debug:
     description: >
-      When "true", enables local SCFW debug logging for package manager commands intercepted
-      by the Code Security path. Debug logs may include Code Security API request and response
-      bodies, so review workflow logs before sharing them.
+      When "true", enables local SCFW debug logging. Debug logs may include Code Security
+      API request and response bodies, so review workflow logs before sharing them.
     required: false
     default: 'false'
 
   dd-site:
     description: >
-      Datadog site parameter specifying the data center where the user's Datadog org is hosted
-      (e.g., datadoghq.eu, us3.datadoghq.com). Used by both dd-api-logger and dd-codesec-logger.
+      Datadog site for policy evaluation and reporting (for example, datadoghq.eu or
+      us3.datadoghq.com).
     required: false
     default: 'datadoghq.com'
 
-  dd-log-level:
-    description: >
-      Deprecated since SCFW v4.0.0 and ignored by the Code Security path.
-      Controls which SCFW logs are forwarded to Datadog. "ALLOW" causes allowed and blocked
-      package manager commands to be logged; "BLOCK" causes only blocked commands to be logged.
-    required: false
-    default: 'ALLOW'
-
   scfw-home:
     description: >
-      Directory for SCFW's local cache (verifier data). Defaults to a temporary directory when
-      not specified. Set this to a cached directory to speed up verifier data fetches across runs.
+      Directory for SCFW's local cache. Defaults to a temporary directory when omitted.
     required: false
     default: ''
 
   on-warning:
     description: >
-      Deprecated since SCFW v4.0.0 and ignored by the Code Security path.
-      Action to take when SCFW finds only warning-level issues: "ALLOW" to proceed with
-      installation, "BLOCK" to reject it. In non-interactive environments like CI, SCFW
-      defaults to "BLOCK" when not specified.
-    required: false
-    default: ''
-
-  package-minimum-age:
-    description: >
-      Deprecated since SCFW v4.0.0 and ignored by the Code Security path.
-      Minimum age in hours that a package must have before SCFW allows its installation.
-      Helps guard against dependency confusion and typosquatting attacks using newly
-      published packages. Defaults to 24 when not specified.
-    required: false
-    default: ''
-
-  dd-env:
-    description: >
-      Deprecated since SCFW v4.0.0 and ignored by the Code Security path.
-      Datadog environment tag attached to all forwarded firewall events (sets DD_ENV).
-      Defaults to "ci" when not specified.
-    required: false
-    default: 'ci'
-
-  dd-log-attributes:
-    description: >
-      Deprecated since SCFW v4.0.0 and ignored by the Code Security path.
-      A JSON object of custom attributes to attach to all forwarded Datadog log events
-      (sets SCFW_DD_LOG_ATTRIBUTES). Example: '{"team":"security","repo":"my-repo"}'.
+      Action to take for warning-level findings: "ALLOW" or "BLOCK". In non-interactive
+      environments SCFW defaults to "BLOCK" when this input is omitted.
     required: false
     default: ''
 
 outputs:
   scfw-version:
     description: 'The installed version of SCFW.'
-    value: ${{ steps.codesec-path.outputs.scfw-version || steps.standard-path.outputs.scfw-version }}
+    value: ${{ steps.configure-scfw.outputs.scfw-version }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Select configuration path
-      id: configuration-path
-      shell: bash
-      env:
-        SCFW_VERSION: ${{ inputs.version }}
-      run: |
-        use_codesec_path=false
-        major_version="${SCFW_VERSION%%.*}"
-        if [[ -z "$SCFW_VERSION" || "$SCFW_VERSION" == "latest" ]]; then
-          use_codesec_path=true
-        elif [[ "$major_version" =~ ^[0-9]+$ ]] && (( 10#$major_version >= 4 )); then
-          use_codesec_path=true
-        fi
-        echo "use-codesec-path=$use_codesec_path" >> "$GITHUB_OUTPUT"
-
-    - name: Configure Code Security logger
-      if: ${{ inputs.dd-codesec-logger == 'true' && steps.configuration-path.outputs.use-codesec-path == 'true' }}
-      id: codesec-path
-      shell: bash
-      env:
-        SCFW_VERSION: ${{ inputs.version }}
-        SCFW_PACKAGE_MANAGERS: ${{ inputs.package-managers }}
-        INPUT_DD_API_KEY: ${{ inputs.dd-api-key }}
-        INPUT_DD_APP_KEY: ${{ inputs.dd-app-key }}
-        INPUT_DD_SITE: ${{ inputs.dd-site }}
-        INPUT_SCFW_HOME: ${{ inputs.scfw-home }}
-        INPUT_DEBUG: ${{ inputs.debug }}
-      run: "$GITHUB_ACTION_PATH/scripts/codesec-logger-enabled.sh"
-
-    - name: Configure Supply Chain Firewall
-      if: ${{ inputs.dd-codesec-logger != 'true' || steps.configuration-path.outputs.use-codesec-path != 'true' }}
-      id: standard-path
+    - name: Install and configure Supply Chain Firewall
+      id: configure-scfw
       shell: bash
       env:
         SCFW_VERSION: ${{ inputs.version }}
@@ -169,13 +81,8 @@ runs:
         SCFW_ERROR_ON_BLOCK: ${{ inputs.error-on-block }}
         INPUT_DD_API_KEY: ${{ inputs.dd-api-key }}
         INPUT_DD_APP_KEY: ${{ inputs.dd-app-key }}
-        INPUT_DD_API_LOGGER: ${{ inputs.dd-api-logger }}
-        INPUT_DD_CODESEC_LOGGER: ${{ inputs.dd-codesec-logger }}
         INPUT_DD_SITE: ${{ inputs.dd-site }}
-        INPUT_DD_LOG_LEVEL: ${{ inputs.dd-log-level }}
-        INPUT_DD_ENV: ${{ inputs.dd-env }}
-        INPUT_DD_LOG_ATTRIBUTES: ${{ inputs.dd-log-attributes }}
         INPUT_SCFW_HOME: ${{ inputs.scfw-home }}
         INPUT_ON_WARNING: ${{ inputs.on-warning }}
-        INPUT_PACKAGE_MINIMUM_AGE: ${{ inputs.package-minimum-age }}
-      run: "$GITHUB_ACTION_PATH/scripts/codesec-logger-disabled.sh"
+        INPUT_DEBUG: ${{ inputs.debug }}
+      run: "$GITHUB_ACTION_PATH/scripts/setup.sh"
