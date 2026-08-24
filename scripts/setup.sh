@@ -38,11 +38,6 @@ validate_inputs() {
     *) echo "debug must be either 'true' or 'false'" >&2; exit 1 ;;
   esac
 
-  case "$INPUT_ON_WARNING" in
-    ""|ALLOW|allow|BLOCK|block) ;;
-    *) echo "on-warning must be either 'ALLOW' or 'BLOCK'" >&2; exit 1 ;;
-  esac
-
   IFS=',' read -ra package_managers <<< "$SCFW_PACKAGE_MANAGERS"
   for pm in "${package_managers[@]}"; do
     pm="${pm// /}"
@@ -169,10 +164,6 @@ configure_scfw_environment() {
     mkdir -p "$INPUT_SCFW_HOME"
     echo "SCFW_HOME=$INPUT_SCFW_HOME" >> "$GITHUB_ENV"
     echo "Using persistent SCFW cache directory: $INPUT_SCFW_HOME"
-  fi
-
-  if [ -n "$INPUT_ON_WARNING" ]; then
-    echo "SCFW_ON_WARNING=$INPUT_ON_WARNING" >> "$GITHUB_ENV"
   fi
 
   echo "Supply Chain Firewall configuration complete"

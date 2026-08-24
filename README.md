@@ -4,6 +4,17 @@ A GitHub Action that installs Datadog's [Supply Chain Firewall](https://github.c
 
 The action installs the Go-based SCFW CLI (v4 or later) on Linux and macOS runners. Windows runners are not supported.
 
+---
+
+### Interested in SCFW for your business use case?
+
+[Enroll as a design partner](https://docs.google.com/forms/d/1Xqh5h1n3-jC7au2t30fdTq732dkTJqt_cb7C7T-AkPc/edit).
+
+---
+
+> [!NOTE]
+> To remain on the legacy Python version, continue targeting `DataDog/supply-chain-firewall-action@v1`. The `v1` release line will be deprecated, so migrate to the Go-based action when possible.
+
 ## Usage
 
 ```yaml
@@ -81,7 +92,6 @@ steps:
 | `debug` | When `"true"`, enables local SCFW debug logs. Debug output may contain API request and response bodies. | `false` |
 | `dd-site` | Datadog site (e.g., `datadoghq.com`, `datadoghq.eu`, `us3.datadoghq.com`). | `datadoghq.com` |
 | `scfw-home` | Directory for SCFW's local cache. Point this at a cached directory to speed up verifier data fetches across runs. | — |
-| `on-warning` | Action that SCFW should take on warning-level findings: `ALLOW` or `BLOCK`. Defaults to `BLOCK` in non-interactive environments. | — |
 
 ## Outputs
 

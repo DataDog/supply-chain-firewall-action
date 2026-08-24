@@ -77,7 +77,6 @@ jobs:
           package-managers: pip
           error-on-block: 'false'
           debug: 'true'
-          on-warning: 'ALLOW'
           scfw-home: /tmp/test-scfw-home
           dd-site: datadoghq.eu
           dd-api-key: test-api-key
@@ -92,7 +91,6 @@ jobs:
             echo "error-on-block should not be enabled" >&2
             exit 1
           fi
-          [[ "$SCFW_ON_WARNING" == "ALLOW" ]]
           [[ "$SCFW_HOME" == "/tmp/test-scfw-home" ]]
           [[ "$DD_SITE" == "datadoghq.eu" ]]
           [[ -d "$SCFW_HOME" ]]
