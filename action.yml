@@ -1,232 +1,80 @@
 name: 'Deploy Supply Chain Firewall'
 description: >
-  Install Datadog's Supply Chain Firewall (SCFW) and configure it to transparently intercept
-  supported package manager commands (npm, pip, poetry) for all subsequent steps in the job.
+  Install the Go version of Datadog's Supply Chain Firewall (SCFW) and configure it to
+  transparently intercept supported package manager commands for all subsequent job steps.
 
 inputs:
   version:
     description: >
-      The version of SCFW to install. Use "latest" for the most recent release (default),
-      or pin to a specific version (e.g., "0.7.0").
+      The Go-based SCFW release to install. Use "latest" for the most recent release,
+      or pin to an explicit v4+ version (for example, "4.0.0").
     required: false
     default: 'latest'
 
   package-managers:
     description: >
-      Comma-separated list of the package managers whose commands should be inspected.
-      Supported values: pip, npm, poetry. Defaults to all three.
+      Comma-separated list of package managers whose commands should be inspected.
+      Supported values: pip, npm, poetry.
     required: false
     default: 'npm,pip,poetry'
 
   error-on-block:
     description: >
-      When "true" (default), blocked package installations cause the step to exit with
-      a non-zero code, failing the workflow. Set to "false" to allow the workflow to continue
-      even when installations are blocked.
+      When "true", blocked package installations exit with a non-zero status and fail
+      the workflow step. Set to "false" to let blocked commands exit successfully.
     required: false
     default: 'true'
 
   dd-api-key:
     description: >
-      Datadog API key for forwarding firewall events to the Datadog HTTP API.
+      Datadog API key used for Code Security policy evaluation and reporting.
       Treat this value as a secret.
-    required: false
-    default: ''
+    required: true
 
   dd-app-key:
     description: >
-      Datadog application key. Required when using dd-codesec-logger.
+      Datadog application key used for Code Security policy evaluation and reporting.
       Treat this value as a secret.
-    required: false
-    default: ''
+    required: true
 
-  dd-api-logger:
+  debug:
     description: >
-      When "true", enables SCFW's Datadog HTTP API logger (sets SCFW_DD_API_LOGGER_ENABLED).
-      Requires dd-api-key to be set.
-    required: false
-    default: 'false'
-
-  dd-codesec-logger:
-    description: >
-      When "true", enables SCFW's Datadog Code Security logger (sets SCFW_DD_CODESEC_LOGGER_ENABLED).
-      Requires both dd-api-key and dd-app-key to be set.
+      When "true", enables local SCFW debug logging. Debug logs may include Code Security
+      API request and response bodies, so review workflow logs before sharing them.
     required: false
     default: 'false'
 
   dd-site:
     description: >
-      Datadog site parameter specifying the data center where the user's Datadog org is hosted
-      (e.g., datadoghq.eu, us3.datadoghq.com). Used by both dd-api-logger and dd-codesec-logger.
+      Datadog site for policy evaluation and reporting (for example, datadoghq.eu or
+      us3.datadoghq.com).
     required: false
     default: 'datadoghq.com'
 
-  dd-log-level:
-    description: >
-      Controls which SCFW logs are forwarded to Datadog. "ALLOW" causes allowed and blocked
-      package manager commands to be logged; "BLOCK" causes only blocked commands to be logged.
-    required: false
-    default: 'ALLOW'
-
   scfw-home:
     description: >
-      Directory for SCFW's local cache (verifier data). Defaults to a temporary directory when
-      not specified. Set this to a cached directory to speed up verifier data fetches across runs.
-    required: false
-    default: ''
-
-  on-warning:
-    description: >
-      Action to take when SCFW finds only warning-level issues: "ALLOW" to proceed with
-      installation, "BLOCK" to reject it. In non-interactive environments like CI, SCFW
-      defaults to "BLOCK" when not specified.
-    required: false
-    default: ''
-
-  package-minimum-age:
-    description: >
-      Minimum age in hours that a package must have before SCFW allows its installation.
-      Helps guard against dependency confusion and typosquatting attacks using newly
-      published packages. Defaults to 24 when not specified.
-    required: false
-    default: ''
-
-  dd-env:
-    description: >
-      Datadog environment tag attached to all forwarded firewall events (sets DD_ENV).
-      Defaults to "ci" when not specified.
-    required: false
-    default: 'ci'
-
-  dd-log-attributes:
-    description: >
-      A JSON object of custom attributes to attach to all forwarded Datadog log events
-      (sets SCFW_DD_LOG_ATTRIBUTES). Example: '{"team":"security","repo":"my-repo"}'.
+      Directory for SCFW's local cache. Defaults to a temporary directory when omitted.
     required: false
     default: ''
 
 outputs:
   scfw-version:
     description: 'The installed version of SCFW.'
-    value: ${{ steps.install-scfw.outputs.scfw-version }}
+    value: ${{ steps.configure-scfw.outputs.scfw-version }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Install Supply Chain Firewall
-      id: install-scfw
+    - name: Install and configure Supply Chain Firewall
+      id: configure-scfw
       shell: bash
       env:
         SCFW_VERSION: ${{ inputs.version }}
-      run: |
-        # Install pipx if not available
-        if ! command -v pipx &>/dev/null; then
-          pip install --quiet pipx
-          python -m pipx ensurepath
-        fi
-
-        if [ "$SCFW_VERSION" = "latest" ]; then
-          pipx install scfw --quiet
-        else
-          pipx install "scfw==$SCFW_VERSION" --quiet
-        fi
-
-        # Ensure pipx-managed binaries are on PATH for subsequent steps
-        PIPX_BIN_DIR="$(pipx environment --value PIPX_BIN_DIR)"
-        echo "$PIPX_BIN_DIR" >> "$GITHUB_PATH"
-
-        INSTALLED_VERSION="$("$PIPX_BIN_DIR/scfw" --version)"
-        echo "scfw-version=$INSTALLED_VERSION" >> "$GITHUB_OUTPUT"
-        echo "Supply Chain Firewall installed: $INSTALLED_VERSION"
-
-    - name: Create package manager wrapper scripts
-      id: create-wrappers
-      shell: bash
-      env:
         SCFW_PACKAGE_MANAGERS: ${{ inputs.package-managers }}
         SCFW_ERROR_ON_BLOCK: ${{ inputs.error-on-block }}
-      run: |
-        WRAPPER_DIR="$RUNNER_TEMP/scfw-wrappers"
-        mkdir -p "$WRAPPER_DIR"
-
-        IFS=',' read -ra PMS <<< "$SCFW_PACKAGE_MANAGERS"
-        for pm in "${PMS[@]}"; do
-          pm="${pm// /}"  # strip whitespace
-
-          case "$pm" in
-            pip|npm|poetry) ;;
-            *) echo "Unsupported package manager: '$pm'" >&2; exit 1 ;;
-          esac
-
-          error_on_block_flag=""
-          if [ "$SCFW_ERROR_ON_BLOCK" = "true" ]; then
-            error_on_block_flag="--error-on-block"
-          fi
-
-          # Instantiate the wrapper template, substituting the package manager
-          # name and any extra scfw flags. The template lives in a separate file
-          # to avoid embedding unindented content inside the YAML literal block,
-          # which would cause a YAML parse error.
-          sed \
-            -e "s|SCFW_PM_NAME|$pm|g" \
-            -e "s|SCFW_EXTRA_FLAGS |${error_on_block_flag:+$error_on_block_flag }|g" \
-            "$GITHUB_ACTION_PATH/scripts/pm-wrapper.sh.template" \
-            > "$WRAPPER_DIR/$pm"
-          chmod +x "$WRAPPER_DIR/$pm"
-          echo "Created wrapper: $pm (real binary resolved at call time)"
-        done
-
-        echo "$WRAPPER_DIR" >> "$GITHUB_PATH"
-
-    - name: Configure Supply Chain Firewall environment
-      shell: bash
-      env:
         INPUT_DD_API_KEY: ${{ inputs.dd-api-key }}
         INPUT_DD_APP_KEY: ${{ inputs.dd-app-key }}
-        INPUT_DD_API_LOGGER: ${{ inputs.dd-api-logger }}
-        INPUT_DD_CODESEC_LOGGER: ${{ inputs.dd-codesec-logger }}
         INPUT_DD_SITE: ${{ inputs.dd-site }}
-        INPUT_DD_LOG_LEVEL: ${{ inputs.dd-log-level }}
-        INPUT_DD_ENV: ${{ inputs.dd-env }}
-        INPUT_DD_LOG_ATTRIBUTES: ${{ inputs.dd-log-attributes }}
         INPUT_SCFW_HOME: ${{ inputs.scfw-home }}
-        INPUT_ON_WARNING: ${{ inputs.on-warning }}
-        INPUT_PACKAGE_MINIMUM_AGE: ${{ inputs.package-minimum-age }}
-      run: |
-        if [ -n "$INPUT_DD_API_KEY" ]; then
-          echo "DD_API_KEY=$INPUT_DD_API_KEY" >> "$GITHUB_ENV"
-        fi
-
-        if [ -n "$INPUT_DD_APP_KEY" ]; then
-          echo "DD_APP_KEY=$INPUT_DD_APP_KEY" >> "$GITHUB_ENV"
-        fi
-
-        if [ "$INPUT_DD_API_LOGGER" = "true" ]; then
-          echo "SCFW_DD_API_LOGGER_ENABLED=1" >> "$GITHUB_ENV"
-        fi
-
-        if [ "$INPUT_DD_CODESEC_LOGGER" = "true" ]; then
-          echo "SCFW_DD_CODESEC_LOGGER_ENABLED=1" >> "$GITHUB_ENV"
-        fi
-
-        echo "DD_SITE=$INPUT_DD_SITE" >> "$GITHUB_ENV"
-        echo "SCFW_DD_LOG_LEVEL=$INPUT_DD_LOG_LEVEL" >> "$GITHUB_ENV"
-
-        echo "DD_ENV=$INPUT_DD_ENV" >> "$GITHUB_ENV"
-
-        if [ -n "$INPUT_DD_LOG_ATTRIBUTES" ]; then
-          echo "SCFW_DD_LOG_ATTRIBUTES=$INPUT_DD_LOG_ATTRIBUTES" >> "$GITHUB_ENV"
-        fi
-
-        if [ -n "$INPUT_SCFW_HOME" ]; then
-          mkdir -p "$INPUT_SCFW_HOME"
-          echo "SCFW_HOME=$INPUT_SCFW_HOME" >> "$GITHUB_ENV"
-        fi
-
-        if [ -n "$INPUT_ON_WARNING" ]; then
-          echo "SCFW_ON_WARNING=$INPUT_ON_WARNING" >> "$GITHUB_ENV"
-        fi
-
-        if [ -n "$INPUT_PACKAGE_MINIMUM_AGE" ]; then
-          echo "SCFW_PACKAGE_MINIMUM_AGE=$INPUT_PACKAGE_MINIMUM_AGE" >> "$GITHUB_ENV"
-        fi
+        INPUT_DEBUG: ${{ inputs.debug }}
+      run: "$GITHUB_ACTION_PATH/scripts/setup.sh"

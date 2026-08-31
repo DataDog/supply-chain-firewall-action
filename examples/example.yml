@@ -19,20 +19,18 @@ jobs:
         with:
           node-version: '20'
 
-      # Cache scfw verifier data across runs
+      # Cache SCFW data across runs
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.scfw
           key: scfw-${{ runner.os }}
 
       # Install and configure Supply Chain Firewall
-      - uses: DataDog/supply-chain-firewall-action@2f166ae1d2c34ed717d7b08427c7acb57804f3f5 # v1.0.0
+      - uses: DataDog/supply-chain-firewall-action@main
         with:
           scfw-home: ~/.scfw
           dd-api-key: ${{ secrets.DD_API_KEY }}
-          dd-api-logger: 'true'
-          dd-env: 'prod'
-          on-warning: 'BLOCK'
+          dd-app-key: ${{ secrets.DD_APP_KEY }}
 
       # These commands are now transparently intercepted by Supply Chain Firewall.
       # Malicious packages are blocked before installation.
