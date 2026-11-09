@@ -55,6 +55,9 @@ import sys
 if sys.argv[1:] == ["--version"]:
     print("scfw version " + os.environ["SCFW_TEST_VERSION"])
     sys.exit(0)
+if os.environ.get("SCFW_TEST_WRAPPER_ACTIVE") == "1":
+    sys.exit("recursive SCFW wrapper invocation")
+os.environ["SCFW_TEST_WRAPPER_ACTIVE"] = "1"
 Path(os.environ["SCFW_TEST_LOG"]).write_text(json.dumps({
     "args": sys.argv[1:],
     "proxy": os.environ.get("SCFW_PROXY_ENABLED"),
@@ -173,6 +176,26 @@ else:
         invocation = json.loads(Path(self.env["SCFW_TEST_LOG"]).read_text())
         self.assertEqual(invocation["proxy"], "1")
         self.assertEqual(invocation["args"][3:], ["--log-level", "DEBUG", "--", "uv", "sync"])
+
+    def test_wrappers_skip_symlinked_directories_and_executables(self):
+        managers = ("uv", "npm", "pip", "poetry")
+        self.assert_success(self.setup_action(managers=",".join(managers)))
+        wrappers = Path(self.env["RUNNER_TEMP"]) / "scfw-wrappers"
+        alias = self.directory / "wrapper alias"
+        alias.symlink_to(wrappers, target_is_directory=True)
+        alias_bin = self.directory / "aliased executables"
+        alias_bin.mkdir()
+        for pm in managers:
+            with self.subTest(pm=pm):
+                (alias_bin / pm).symlink_to(wrappers / pm)
+                real = self.write_executable(pm, '#!/bin/bash\nprintf "%s\\n" "$@"\n')
+                result = self.run_wrapper(
+                    pm, "--version", PATH=f"{alias}:{alias_bin}:{self.env['PATH']}",
+                )
+                self.assert_success(result)
+                self.assertEqual(result.stdout, "--version\n")
+                invocation = json.loads(Path(self.env["SCFW_TEST_LOG"]).read_text())
+                self.assertEqual(invocation["args"][2], str(real))
 
 
 if __name__ == "__main__":

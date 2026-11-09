@@ -1,8 +1,17 @@
 #!/bin/bash
-_wrapper_dir="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
-_search_path="$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF "$_wrapper_dir" | tr '\n' ':')"
-_search_path="${_search_path%:}"
-_real_bin="$(PATH="$_search_path" command -v SCFW_PM_NAME 2>/dev/null)"
+_real_bin=""
+_remaining_path="${PATH}:"
+while [ -n "$_remaining_path" ]; do
+  _path_entry="${_remaining_path%%:*}"
+  _remaining_path="${_remaining_path#*:}"
+  _candidate="${_path_entry:-.}/SCFW_PM_NAME"
+  # Compare file identity so symlinked paths (such as macOS /var) cannot recurse.
+  if [ -f "$_candidate" ] && [ -x "$_candidate" ] &&
+     ! [ "$_candidate" -ef "${BASH_SOURCE[0]}" ]; then
+    _real_bin="$_candidate"
+    break
+  fi
+done
 if [ -z "$_real_bin" ]; then
   echo "scfw: could not find 'SCFW_PM_NAME' executable" >&2
   exit 1
