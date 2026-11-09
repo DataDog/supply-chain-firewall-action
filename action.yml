@@ -14,7 +14,8 @@ inputs:
   package-managers:
     description: >
       Comma-separated list of package managers whose commands should be inspected.
-      Supported values: pip, npm, poetry.
+      Supported values: pip, npm, poetry, uv. uv requires SCFW 4.2.0 or later
+      and uses proxy mode.
     required: false
     default: 'npm,pip,poetry'
 

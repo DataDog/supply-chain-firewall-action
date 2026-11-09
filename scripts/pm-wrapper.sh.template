@@ -7,4 +7,4 @@ if [ -z "$_real_bin" ]; then
   echo "scfw: could not find 'SCFW_PM_NAME' executable" >&2
   exit 1
 fi
-exec scfw run --executable "$_real_bin" SCFW_EXTRA_FLAGS SCFW_PM_NAME "$@"
+SCFW_PROXY_ENVexec scfw run --executable "$_real_bin" SCFW_EXTRA_FLAGS SCFW_PM_NAME "$@"
