@@ -48,6 +48,27 @@ steps:
 
 See [`examples/example.yml`](examples/example.yml) for a complete workflow you can copy into your own repo.
 
+### With uv (SCFW 4.2.0 or later)
+
+Install uv before using it (for example, with `astral-sh/setup-uv`), then include it in `package-managers`:
+
+```yaml
+steps:
+  - uses: DataDog/supply-chain-firewall-action@main
+    with:
+      version: '4.2.0'
+      package-managers: uv
+      dd-api-key: ${{ secrets.DD_API_KEY }}
+      dd-app-key: ${{ secrets.DD_APP_KEY }}
+
+  - run: uv pip install --system requests
+  - run: uv sync
+```
+
+The action wraps an existing uv executable; it does not install uv. The uv wrapper enables SCFW proxy mode for each invocation. Other package managers keep their existing mode. SCFW inspects distributions downloaded over HTTP(S); packages already in uv's cache, local paths, and Git source contents are outside that inspection. Use an empty uv cache or `--no-cache` when you need dependencies to be downloaded and inspected.
+
+Selecting uv with an SCFW release older than 4.2.0 fails setup. For `version: latest`, the action checks the downloaded binary's version. uv is opt-in and is not included in the default package-manager list.
+
 ### With a cached `SCFW_HOME` directory
 
 Caching `SCFW_HOME` avoids re-fetching verifier data on each run:
@@ -72,7 +93,7 @@ steps:
 
 2. **Wrap**: For each requested package manager, the action writes a thin wrapper script into a temporary directory and prepends that directory to `PATH`. All subsequent steps that invoke those package managers automatically go through Supply Chain Firewall.
 
-   Each wrapper resolves the real binary at call time by removing its own directory from `PATH` before searching, then passes the resolved path to `scfw run --executable`. This ensures Supply Chain Firewall always calls the real binary and never re-invokes the wrapper.
+   Each wrapper searches `PATH` at call time, skips executables referring to itself (including symlinked paths), then passes the real binary's path to `scfw run --executable`. This ensures Supply Chain Firewall always calls the real binary and never re-invokes the wrapper.
 
    > :warning: Activating a Python virtual environment (e.g., `source .venv/bin/activate`) shadows the Supply Chain Firewall wrappers for the remainder of that step. Use `scfw run -- pip install ...` explicitly for any commands run inside virtual environments.
 
@@ -85,7 +106,7 @@ steps:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `version` | The Go-based SCFW release to install. Use `"latest"` or pin to a v4+ release (e.g., `"4.0.0"`). | `latest` |
-| `package-managers` | Comma-separated list of package managers to intercept. Supported: `npm`, `pip`, `poetry`. | `npm,pip,poetry` |
+| `package-managers` | Comma-separated list of package managers to intercept. Supported: `npm`, `pip`, `poetry`, `uv` (SCFW 4.2.0+; uses proxy mode). | `npm,pip,poetry` |
 | `error-on-block` | Exit with a non-zero code when an installation is blocked, failing the workflow step. | `true` |
 | `dd-api-key` | Datadog API key used for Code Security policy evaluation and reporting. Use `${{ secrets.DD_API_KEY }}`. | Required |
 | `dd-app-key` | Datadog application key used for Code Security policy evaluation and reporting. Use `${{ secrets.DD_APP_KEY }}`. | Required |

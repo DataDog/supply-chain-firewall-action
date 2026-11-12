@@ -1,6 +1,31 @@
 #!/bin/bash
 set -eo pipefail
 
+validate_uv_version() {
+  local version="$1"
+  local major minor patch suffix
+  local pm
+  local -a package_managers
+
+  IFS=',' read -ra package_managers <<< "$SCFW_PACKAGE_MANAGERS"
+  for pm in "${package_managers[@]}"; do
+    [ "${pm// /}" = "uv" ] || continue
+    if [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)([.-][0-9A-Za-z.-]+)?$ ]]; then
+      major="${BASH_REMATCH[1]}"
+      minor="${BASH_REMATCH[2]}"
+      patch="${BASH_REMATCH[3]}"
+      suffix="${BASH_REMATCH[4]}"
+      if (( 10#$major > 4 || (10#$major == 4 && 10#$minor > 2) ||
+            (10#$major == 4 && 10#$minor == 2 && 10#$patch > 0) )) ||
+         { (( 10#$major == 4 && 10#$minor == 2 && 10#$patch == 0 )) && [ -z "$suffix" ]; }; then
+        continue
+      fi
+    fi
+    echo "uv requires SCFW 4.2.0 or later; selected version is '$version'" >&2
+    exit 1
+  done
+}
+
 validate_inputs() {
   local major_version
   local pm
@@ -42,10 +67,14 @@ validate_inputs() {
   for pm in "${package_managers[@]}"; do
     pm="${pm// /}"
     case "$pm" in
-      pip|npm|poetry) ;;
+      pip|npm|poetry|uv) ;;
       *) echo "Unsupported package manager: '$pm'" >&2; exit 1 ;;
     esac
   done
+
+  if [ "$SCFW_VERSION" != "latest" ]; then
+    validate_uv_version "$SCFW_VERSION"
+  fi
 }
 
 verify_checksum() {
@@ -118,6 +147,7 @@ install_scfw() {
 
   installed_version="$("$binary_path" --version)"
   installed_version="${installed_version#scfw version }"
+  validate_uv_version "$installed_version"
   echo "$install_dir" >> "$GITHUB_PATH"
   echo "scfw-version=$installed_version" >> "$GITHUB_OUTPUT"
   echo "Supply Chain Firewall installed: $installed_version"
@@ -127,6 +157,7 @@ create_package_manager_wrappers() {
   local wrapper_dir="$RUNNER_TEMP/scfw-wrappers"
   local pm
   local scfw_extra_flags=""
+  local proxy_env
   local -a package_managers
 
   if [ "$INPUT_DEBUG" = "true" ]; then
@@ -142,8 +173,13 @@ create_package_manager_wrappers() {
   IFS=',' read -ra package_managers <<< "$SCFW_PACKAGE_MANAGERS"
   for pm in "${package_managers[@]}"; do
     pm="${pm// /}"
+    proxy_env=""
+    if [ "$pm" = "uv" ]; then
+      proxy_env="SCFW_PROXY_ENABLED=1 "
+    fi
     sed \
       -e "s|SCFW_PM_NAME|$pm|g" \
+      -e "s|SCFW_PROXY_ENV|$proxy_env|g" \
       -e "s|SCFW_EXTRA_FLAGS |${scfw_extra_flags:+$scfw_extra_flags }-- |g" \
       "$GITHUB_ACTION_PATH/scripts/pm-wrapper.sh.template" \
       > "$wrapper_dir/$pm"
