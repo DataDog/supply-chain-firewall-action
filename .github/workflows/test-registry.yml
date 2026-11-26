@@ -1,0 +1,65 @@
+name: Test registry action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        client:
+          - {manager: npm, version: latest}
+          - {manager: pnpm, version: latest}
+          - {manager: yarn, version: latest}
+          - {manager: bun, version: latest}
+          - {manager: pip, version: latest}
+          - {manager: uv, version: latest}
+          - {manager: poetry, version: latest}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Prepare a project
+        shell: bash
+        run: |
+          project_dir="$(mktemp -d "$RUNNER_TEMP/scfw-project.XXXXXX")"
+          echo "REGISTRY_PROJECT=$project_dir" >> "$GITHUB_ENV"
+          cat > "$project_dir/pyproject.toml" <<'TOML'
+          [project]
+          name = "fixture-project"
+          version = "1.0.0"
+          requires-python = ">=3.11"
+          TOML
+          echo '{"name":"fixture-project","private":true}' > "$project_dir/package.json"
+      - name: Run the separate registry action
+        id: registry
+        uses: ./registry
+        with:
+          package-manager: ${{ matrix.client.manager }}
+          version: ${{ matrix.client.version }}
+          sat: ddsat_fixture_not_a_real_credential
+          working-directory: ${{ env.REGISTRY_PROJECT }}
+      - name: Verify exported executable and outputs
+        shell: bash
+        env:
+          CLIENT: ${{ matrix.client.manager }}
+          INSTALLED_VERSION: ${{ steps.registry.outputs.package-manager-version }}
+          REGISTRY_URL: ${{ steps.registry.outputs.registry-url }}
+        run: |
+          test "$INSTALLED_VERSION" = "$("$CLIENT" --version)"
+          test -n "$REGISTRY_URL"
+          test -z "${DD_API_KEY:-}"
+          test -z "${DD_APP_KEY:-}"
+          test "${SCFW_PROXY_ENABLED:-}" != 1
+      - name: Qualify authentication, redirects, and blocking with real clients
+        shell: bash
+        env:
+          CLIENT: ${{ matrix.client.manager }}
+          CLIENT_VERSION: ${{ matrix.client.version }}
+        run: python3 tests/registry_integration.py "$CLIENT" "$CLIENT_VERSION"

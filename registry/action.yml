@@ -1,0 +1,55 @@
+name: 'Supply Chain Firewall Registry'
+description: 'Install a package manager and route public npm or PyPI downloads through the Datadog SCFW registry.'
+
+inputs:
+  package-manager:
+    description: 'Client to install: npm, pnpm, yarn (Berry only), bun, pip, uv, or poetry.'
+    required: true
+  version:
+    description: 'Package-manager version to install, or latest. Yarn Classic is not supported.'
+    default: 'latest'
+  dd_site:
+    description: 'Datadog application hostname serving the registry, optionally prefixed with https://.'
+    default: 'app.datadoghq.com'
+  sat:
+    description: 'Datadog service account token. Pass a GitHub Actions secret.'
+    required: true
+  node-version:
+    description: 'Node.js version for JavaScript package managers.'
+    default: '24'
+  python-version:
+    description: 'Python version used for setup and Python package managers (3.11 or later).'
+    default: '3.12'
+  working-directory:
+    description: 'Project directory. Yarn Berry and Poetry configure their source in this directory.'
+    default: '.'
+
+outputs:
+  package-manager-version:
+    description: 'Installed client version.'
+    value: ${{ steps.configure.outputs.package-manager-version }}
+  registry-url:
+    description: 'Registry URL without credentials.'
+    value: ${{ steps.configure.outputs.registry-url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      with:
+        python-version: ${{ inputs.python-version }}
+    - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      if: contains(fromJSON('["npm", "pnpm", "yarn", "bun"]'), inputs.package-manager)
+      with:
+        node-version: ${{ inputs.node-version }}
+        package-manager-cache: false
+    - name: Install and configure the registry client
+      id: configure
+      shell: bash
+      env:
+        INPUT_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_DD_SITE: ${{ inputs.dd_site }}
+        INPUT_SAT: ${{ inputs.sat }}
+        INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: python3 "$GITHUB_ACTION_PATH/setup.py"
