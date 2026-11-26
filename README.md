@@ -4,6 +4,10 @@ A GitHub Action that installs Datadog's [Supply Chain Firewall](https://github.c
 
 The action installs the Go-based SCFW CLI (v4 or later) on Linux and macOS runners. Windows runners are not supported.
 
+To use the SCFW registry backend instead, use the separate
+[`DataDog/supply-chain-firewall-action/registry`](registry/README.md) action. It
+installs and configures npm, pnpm, Yarn, Bun, pip, uv, or Poetry using a Datadog SAT.
+
 ---
 
 ### Interested in SCFW for your business use case?
