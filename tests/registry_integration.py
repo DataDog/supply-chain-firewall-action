@@ -49,13 +49,27 @@ def main(manager, version):
         directory = Path(temporary)
         cert = directory / "cert.pem"
         key = directory / "key.pem"
+        ca = directory / "ca.pem"
+        ca_key = directory / "ca-key.pem"
+        csr = directory / "server.csr"
         cert_config = directory / "cert.conf"
-        cert_config.write_text("[req]\ndistinguished_name=dn\n[dn]\nCN=localhost\n"
+        cert_config.write_text("[req]\ndistinguished_name=dn\n[dn]\nCN=SCFW Fixture CA\n"
+                               "[ca]\nbasicConstraints=critical,CA:TRUE\n"
+                               "keyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n"
                                "[server]\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n"
-                               "basicConstraints=critical,CA:FALSE\n")
+                               "basicConstraints=critical,CA:FALSE\n"
+                               "extendedKeyUsage=serverAuth\n"
+                               "keyUsage=critical,digitalSignature,keyEncipherment\n")
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
-                        "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost",
-                        "-config", str(cert_config), "-extensions", "server"],
+                        "-keyout", str(ca_key), "-out", str(ca), "-days", "1", "-subj", "/CN=SCFW Fixture CA",
+                        "-config", str(cert_config), "-extensions", "ca"],
+                       check=True, capture_output=True)
+        subprocess.run(["openssl", "req", "-new", "-newkey", "rsa:2048", "-nodes",
+                        "-keyout", str(key), "-out", str(csr), "-subj", "/CN=localhost"],
+                       check=True, capture_output=True)
+        subprocess.run(["openssl", "x509", "-req", "-in", str(csr), "-CA", str(ca),
+                        "-CAkey", str(ca_key), "-CAcreateserial", "-out", str(cert), "-days", "1",
+                        "-extfile", str(cert_config), "-extensions", "server"],
                        check=True, capture_output=True)
         files = artifacts()
         requests = []
@@ -145,9 +159,9 @@ def main(manager, version):
                 name, value = line.split("=", 1)
                 env[name] = value
             env["PATH"] = os.pathsep.join([*reversed(Path(env["GITHUB_PATH"]).read_text().splitlines()), env["PATH"]])
-            env.update(NODE_EXTRA_CA_CERTS=str(cert), PIP_CERT=str(cert), SSL_CERT_FILE=str(cert),
-                       REQUESTS_CA_BUNDLE=str(cert), UV_NATIVE_TLS="true", PIP_DISABLE_PIP_VERSION_CHECK="1",
-                       YARN_HTTPS_CA_FILE_PATH=str(cert), YARN_ENABLE_TELEMETRY="0",
+            env.update(NODE_EXTRA_CA_CERTS=str(ca), PIP_CERT=str(ca), SSL_CERT_FILE=str(ca),
+                       REQUESTS_CA_BUNDLE=str(ca), UV_NATIVE_TLS="true", PIP_DISABLE_PIP_VERSION_CHECK="1",
+                       YARN_HTTPS_CA_FILE_PATH=str(ca), YARN_ENABLE_TELEMETRY="0",
                        YARN_ENABLE_IMMUTABLE_INSTALLS="false", YARN_ENABLE_GLOBAL_CACHE="false", YARN_ENABLE_MIRROR="false",
                        YARN_CACHE_FOLDER=str(directory / "yarn-cache"),
                        POETRY_VIRTUALENVS_IN_PROJECT="true", POETRY_CACHE_DIR=str(directory / "poetry-cache"))
